@@ -11,6 +11,8 @@ Repository: `https://github.com/ttc9082/notch-codex`
 This is an early prototype:
 
 - macOS menu bar app: working
+- pixel-style popover UI: working
+- small microinteractions for refresh, hover, status, and usage bars: working
 - local Codex token/rate-limit reader: working
 - NotchNook or other notch-widget host: planned
 - packaged `.app` release: planned
@@ -28,6 +30,8 @@ swift run notch-codex
 ```
 
 The app appears as a `Codex ...` status item in the macOS menu bar, usually adjacent to the notch on notched MacBooks.
+
+Click the status item to open the pixel dashboard. The panel shows animated local usage, a Codex limit bar, token cards, plan/window metadata, and quick `SYNC` / `QUIT` controls.
 
 ## Install From Source
 

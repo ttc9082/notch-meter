@@ -1,13 +1,14 @@
 import AppKit
 import CodexUsageCore
 import Foundation
+import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let reader = CodexUsageReader()
+    private let viewModel = UsageViewModel()
+    private let popover = NSPopover()
     private var timer: Timer?
-    private var latestSnapshot: CodexUsageSnapshot = .empty
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -15,8 +16,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let button = statusItem.button {
             button.title = "Codex ..."
             button.toolTip = "Codex usage near the notch"
+            button.target = self
+            button.action = #selector(togglePopover)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
+        configurePopover()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -26,17 +31,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refresh() {
-        do {
-            latestSnapshot = try reader.todaySnapshot()
-            statusItem.button?.title = statusTitle(for: latestSnapshot)
-            statusItem.menu = menu(for: latestSnapshot)
-        } catch {
-            statusItem.button?.title = "Codex --"
-            statusItem.menu = errorMenu(error)
-        }
+        viewModel.refresh()
+        statusItem.button?.title = statusTitle(for: viewModel.snapshot, error: viewModel.errorMessage)
     }
 
-    private func statusTitle(for snapshot: CodexUsageSnapshot) -> String {
+    private func configurePopover() {
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentSize = NSSize(width: 360, height: 348)
+        popover.contentViewController = NSHostingController(
+            rootView: PixelUsagePanel(
+                viewModel: viewModel,
+                onRefresh: { [weak self] in self?.refresh() },
+                onQuit: { NSApp.terminate(nil) }
+            )
+        )
+    }
+
+    private func statusTitle(for snapshot: CodexUsageSnapshot, error: String?) -> String {
+        if error != nil {
+            return "Codex --"
+        }
+
         if let primary = snapshot.rateLimits?.primary {
             return "Codex \(Int(primary.usedPercent.rounded()))%"
         }
@@ -46,56 +62,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return "Codex idle"
-    }
-
-    private func menu(for snapshot: CodexUsageSnapshot) -> NSMenu {
-        let menu = NSMenu()
-        menu.addItem(.sectionHeader(title: "Codex Usage Today"))
-        menu.addItem(NSMenuItem(title: "Total tokens: \(Self.decimal(snapshot.totalUsage.totalTokens))", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Input: \(Self.decimal(snapshot.totalUsage.inputTokens))", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Output: \(Self.decimal(snapshot.totalUsage.outputTokens))", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Reasoning: \(Self.decimal(snapshot.totalUsage.reasoningOutputTokens))", action: nil, keyEquivalent: ""))
-
-        if let primary = snapshot.rateLimits?.primary {
-            menu.addItem(.separator())
-            menu.addItem(NSMenuItem(title: "5h window: \(Self.percent(primary.usedPercent))", action: nil, keyEquivalent: ""))
-            menu.addItem(NSMenuItem(title: "Resets: \(Self.relative(primary.resetsAt))", action: nil, keyEquivalent: ""))
-        }
-
-        if let secondary = snapshot.rateLimits?.secondary {
-            menu.addItem(NSMenuItem(title: "Weekly: \(Self.percent(secondary.usedPercent))", action: nil, keyEquivalent: ""))
-        }
-
-        if let plan = snapshot.rateLimits?.planType {
-            menu.addItem(NSMenuItem(title: "Plan: \(plan)", action: nil, keyEquivalent: ""))
-        }
-
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Sessions scanned: \(snapshot.scannedFiles)", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Last update: \(Self.relative(snapshot.newestEventDate))", action: nil, keyEquivalent: ""))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Refresh", action: #selector(refreshFromMenu), keyEquivalent: "r"))
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
-        return menu
-    }
-
-    private func errorMenu(_ error: Error) -> NSMenu {
-        let menu = NSMenu()
-        menu.addItem(.sectionHeader(title: "Codex Usage"))
-        menu.addItem(NSMenuItem(title: "Unable to read usage", action: nil, keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "\(error)", action: nil, keyEquivalent: ""))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Refresh", action: #selector(refreshFromMenu), keyEquivalent: "r"))
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
-        return menu
-    }
-
-    @objc private func refreshFromMenu() {
-        refresh()
-    }
-
-    @objc private func quit() {
-        NSApp.terminate(nil)
     }
 
     private static func compact(_ value: Int) -> String {
@@ -108,19 +74,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return "\(value)"
     }
 
-    private static func decimal(_ value: Int) -> String {
-        value.formatted(.number)
-    }
-
-    private static func percent(_ value: Double) -> String {
-        "\(Int(value.rounded()))%"
-    }
-
-    private static func relative(_ date: Date?) -> String {
-        guard let date else {
-            return "unknown"
+    @objc private func togglePopover() {
+        guard let button = statusItem.button else {
+            return
         }
-        return RelativeDateTimeFormatter().localizedString(for: date, relativeTo: Date())
+
+        if popover.isShown {
+            popover.performClose(nil)
+        } else {
+            viewModel.bump()
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            popover.contentViewController?.view.window?.makeKey()
+        }
     }
 }
 
