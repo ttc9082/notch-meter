@@ -10,7 +10,7 @@ final class UsageViewModel: ObservableObject {
     private let reader = CodexUsageReader()
 
     func refresh() {
-        withAnimation(.snappy(duration: 0.28)) {
+        withAnimation(.easeInOut(duration: 0.18)) {
             refreshPulse.toggle()
         }
 
@@ -24,7 +24,7 @@ final class UsageViewModel: ObservableObject {
     }
 
     func bump() {
-        withAnimation(.bouncy(duration: 0.34)) {
+        withAnimation(.easeOut(duration: 0.18)) {
             refreshPulse.toggle()
         }
     }
@@ -41,28 +41,41 @@ struct NotchOverlayView: View {
     @State private var hover = false
     @State private var scanlineOffset: CGFloat = -42
 
+    private var expansionAnimation: Animation {
+        .easeInOut(duration: expanded ? 0.24 : 0.18)
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            notchCap
+        ZStack(alignment: .top) {
+            UnifiedNotchShape()
+                .fill(PixelPalette.notch)
+                .shadow(color: Color.black.opacity(expanded ? 0.48 : 0.26), radius: expanded ? 18 : 8, x: 0, y: expanded ? 12 : 4)
+                .frame(height: expanded ? metrics.expandedHeight : metrics.menuBarHeight)
+                .animation(expansionAnimation, value: expanded)
 
-            if expanded {
+            VStack(spacing: 0) {
+                notchCap
+
                 expandedDeck
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
-            }
+                    .opacity(expanded ? 1 : 0)
+                    .frame(height: expanded ? metrics.expandedHeight - metrics.menuBarHeight : 0, alignment: .top)
+                    .clipped()
+                    .allowsHitTesting(expanded)
+                    .animation(expansionAnimation, value: expanded)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
+            }
         }
         .frame(
             width: metrics.totalWidth,
             height: expanded ? metrics.expandedHeight : metrics.menuBarHeight,
             alignment: .top
         )
+        .clipShape(UnifiedNotchShape())
+        .contentShape(UnifiedNotchShape())
         .background(Color.clear)
         .onHover { inside in
-            withAnimation(.snappy(duration: 0.18)) {
+            withAnimation(.easeInOut(duration: inside ? 0.24 : 0.18)) {
                 hover = inside
                 expanded = inside
                 if inside {
@@ -81,30 +94,32 @@ struct NotchOverlayView: View {
     }
 
     private var notchCap: some View {
-        HStack(spacing: 0) {
-            Button {
-                toggleExpanded()
-            } label: {
-                NotchEar(side: .left, hover: hover) {
+        ZStack {
+            PixelPalette.notch
+
+            HStack(spacing: 0) {
+                Button {
+                    toggleExpanded()
+                } label: {
                     HStack(spacing: 8) {
                         PixelStatusDot(isActive: viewModel.errorMessage == nil)
-                        Text("CODEX")
+                        Text("5H")
                             .font(.system(size: 12, weight: .black, design: .monospaced))
                             .foregroundStyle(PixelPalette.ink)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .contentShape(Rectangle())
                 }
-            }
-            .buttonStyle(.plain)
-            .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
+                .buttonStyle(.plain)
+                .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
 
-            Color.clear
-                .frame(width: metrics.notchWidth, height: metrics.menuBarHeight)
-                .allowsHitTesting(false)
+                Color.clear
+                    .frame(width: metrics.notchWidth, height: metrics.menuBarHeight)
+                    .allowsHitTesting(false)
 
-            Button {
-                toggleExpanded()
-            } label: {
-                NotchEar(side: .right, hover: hover) {
+                Button {
+                    toggleExpanded()
+                } label: {
                     HStack(spacing: 6) {
                         Text(statusText)
                             .font(.system(size: 12, weight: .black, design: .monospaced))
@@ -112,24 +127,20 @@ struct NotchOverlayView: View {
                             .contentTransition(.numericText())
                         MiniUsagePip(value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
             }
-            .buttonStyle(.plain)
-            .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
+            .scaleEffect(hover ? 1.012 : 1)
         }
         .frame(width: metrics.totalWidth, height: metrics.menuBarHeight)
     }
 
     private var expandedDeck: some View {
         ZStack {
-            NotchDropShape()
-                .fill(PixelPalette.background)
-                .overlay(NotchDropShape().stroke(PixelPalette.edge, lineWidth: 2))
-                .shadow(color: Color.black.opacity(0.38), radius: 18, x: 0, y: 14)
-
-            PixelBackdrop(scanlineOffset: scanlineOffset)
-                .clipShape(NotchDropShape())
-                .opacity(0.95)
+            PixelPalette.notch
 
             VStack(alignment: .leading, spacing: 13) {
                 HStack(alignment: .top) {
@@ -177,15 +188,14 @@ struct NotchOverlayView: View {
                 }
             }
             .padding(.horizontal, 18)
-            .padding(.top, 26)
-            .padding(.bottom, 16)
+            .padding(.top, 22)
+            .padding(.bottom, 24)
         }
-        .frame(width: metrics.totalWidth, height: metrics.expandedHeight - metrics.menuBarHeight + 8)
-        .offset(y: -1)
+        .frame(width: metrics.totalWidth, height: metrics.expandedHeight - metrics.menuBarHeight)
     }
 
     private func toggleExpanded() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+        withAnimation(.easeInOut(duration: expanded ? 0.18 : 0.24)) {
             expanded.toggle()
             viewModel.bump()
         }
@@ -274,63 +284,6 @@ private struct MiniUsagePip: View {
     }
 }
 
-private enum NotchEarSide {
-    case left
-    case right
-}
-
-private struct NotchEar<Content: View>: View {
-    let side: NotchEarSide
-    let hover: Bool
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        ZStack(alignment: side == .left ? .leading : .trailing) {
-            NotchEarShape(side: side)
-                .fill(PixelPalette.notch)
-                .overlay(NotchEarShape(side: side).stroke(PixelPalette.edge, lineWidth: 1.5))
-                .shadow(color: Color.black.opacity(0.32), radius: hover ? 10 : 6, x: 0, y: hover ? 6 : 3)
-
-            content
-                .padding(.leading, side == .left ? 12 : 6)
-                .padding(.trailing, side == .right ? 12 : 6)
-                .offset(y: 1)
-                .scaleEffect(hover ? 1.02 : 1)
-        }
-    }
-}
-
-private struct NotchEarShape: Shape {
-    let side: NotchEarSide
-
-    func path(in rect: CGRect) -> Path {
-        let radius: CGFloat = 10
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-
-        switch side {
-        case .left:
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-            path.addLine(to: CGPoint(x: radius, y: rect.maxY))
-            path.addQuadCurve(
-                to: CGPoint(x: 0, y: rect.maxY - radius),
-                control: CGPoint(x: 0, y: rect.maxY)
-            )
-        case .right:
-            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
-            path.addQuadCurve(
-                to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
-                control: CGPoint(x: rect.maxX, y: rect.maxY)
-            )
-            path.addLine(to: CGPoint(x: 0, y: rect.maxY))
-        }
-
-        path.closeSubpath()
-        return path
-    }
-}
-
 private struct PixelChevron: View {
     let expanded: Bool
 
@@ -364,6 +317,27 @@ private struct NotchCapShape: Shape {
         path.addQuadCurve(
             to: CGPoint(x: 0, y: rect.maxY - radius),
             control: CGPoint(x: 0, y: rect.maxY)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct UnifiedNotchShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = min(22, rect.width / 10, rect.height / 2)
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY - radius),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
         )
         path.closeSubpath()
         return path
@@ -724,7 +698,6 @@ private struct PixelButton: View {
                 .background(hover ? PixelPalette.ink : accent)
                 .overlay(Rectangle().stroke(PixelPalette.edge, lineWidth: 2))
                 .offset(x: pressed ? 2 : 0, y: pressed ? 2 : 0)
-                .shadow(color: PixelPalette.edge, radius: 0, x: pressed ? 0 : 3, y: pressed ? 0 : 3)
         }
         .buttonStyle(.plain)
         .onHover { inside in
@@ -774,7 +747,7 @@ private struct ErrorTile: View {
 }
 
 private enum PixelPalette {
-    static let notch = Color(red: 0.005, green: 0.006, blue: 0.008)
+    static let notch = Color.black
     static let background = Color(red: 0.07, green: 0.08, blue: 0.09)
     static let panel = Color(red: 0.12, green: 0.13, blue: 0.15)
     static let grid = Color(red: 0.22, green: 0.24, blue: 0.27).opacity(0.42)

@@ -82,12 +82,16 @@ final class NotchOverlayController {
         let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let origin = NSPoint(
             x: frame.midX - size.width / 2,
-            y: frame.maxY - size.height + 1
+            y: frame.maxY - size.height
         )
         let target = NSRect(origin: origin, size: size)
 
         if animated {
-            panel.animator().setFrame(target, display: true)
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = target.height > panel.frame.height ? 0.24 : 0.18
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                panel.animator().setFrame(target, display: true)
+            }
         } else {
             panel.setFrame(target, display: true)
         }
@@ -122,12 +126,12 @@ struct NotchOverlayMetrics {
            let right = screen.auxiliaryTopRightArea {
             let notchWidth = max(140, right.minX - left.maxX)
             let menuBarHeight = max(28, screen.safeAreaInsets.top)
-            let earWidth: CGFloat = 128
+            let earWidth: CGFloat = 84
             return NotchOverlayMetrics(
                 totalWidth: notchWidth + earWidth * 2,
                 notchWidth: notchWidth,
                 menuBarHeight: menuBarHeight,
-                expandedHeight: menuBarHeight + 294
+                expandedHeight: menuBarHeight + 328
             )
         }
 
