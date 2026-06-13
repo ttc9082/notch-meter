@@ -30,6 +30,272 @@ final class UsageViewModel: ObservableObject {
     }
 }
 
+struct NotchOverlayView: View {
+    @ObservedObject var viewModel: UsageViewModel
+    let onRefresh: () -> Void
+    let onQuit: () -> Void
+    let onExpansionChange: (Bool) -> Void
+
+    @State private var expanded = false
+    @State private var hover = false
+    @State private var scanlineOffset: CGFloat = -42
+
+    var body: some View {
+        VStack(spacing: 0) {
+            notchCap
+
+            if expanded {
+                expandedDeck
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(width: expanded ? 420 : 286, height: expanded ? 356 : 72, alignment: .top)
+        .background(Color.clear)
+        .onHover { inside in
+            withAnimation(.snappy(duration: 0.18)) {
+                hover = inside
+            }
+        }
+        .onAppear {
+            withAnimation(.linear(duration: 2.6).repeatForever(autoreverses: false)) {
+                scanlineOffset = 420
+            }
+        }
+        .onChange(of: expanded) { _, newValue in
+            onExpansionChange(newValue)
+        }
+    }
+
+    private var notchCap: some View {
+        Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+                expanded.toggle()
+                viewModel.bump()
+            }
+        } label: {
+            ZStack {
+                NotchCapShape()
+                    .fill(PixelPalette.notch)
+                    .overlay(NotchCapShape().stroke(PixelPalette.edge, lineWidth: 2))
+                    .shadow(color: Color.black.opacity(0.45), radius: 14, x: 0, y: 10)
+
+                HStack(spacing: 10) {
+                    PixelStatusDot(isActive: viewModel.errorMessage == nil)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("CODEX")
+                            .font(.system(size: 15, weight: .black, design: .monospaced))
+                            .foregroundStyle(PixelPalette.ink)
+                        MiniUsageStrip(value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0)
+                    }
+
+                    Text(statusText)
+                        .font(.system(size: 13, weight: .black, design: .monospaced))
+                        .foregroundStyle(PixelPalette.lime)
+                        .contentTransition(.numericText())
+
+                    PixelChevron(expanded: expanded)
+                }
+                .padding(.top, 9)
+                .scaleEffect(hover ? 1.03 : 1)
+            }
+            .frame(width: expanded ? 312 : 286, height: 72)
+            .contentShape(NotchCapShape())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var expandedDeck: some View {
+        ZStack {
+            NotchDropShape()
+                .fill(PixelPalette.background)
+                .overlay(NotchDropShape().stroke(PixelPalette.edge, lineWidth: 2))
+                .shadow(color: Color.black.opacity(0.38), radius: 18, x: 0, y: 14)
+
+            PixelBackdrop(scanlineOffset: scanlineOffset)
+                .clipShape(NotchDropShape())
+                .opacity(0.95)
+
+            VStack(alignment: .leading, spacing: 13) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("NOTCH CODEX")
+                            .font(.system(size: 18, weight: .black, design: .monospaced))
+                            .foregroundStyle(PixelPalette.ink)
+                        Text(subtitle)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(PixelPalette.muted)
+                    }
+
+                    Spacer()
+                    PixelButton(title: "SYNC", accent: PixelPalette.cyan, action: onRefresh)
+                }
+
+                PixelProgressBar(
+                    title: "5H LIMIT",
+                    value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0,
+                    pulse: viewModel.refreshPulse
+                )
+
+                HStack(spacing: 10) {
+                    PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: PixelPalette.lime)
+                    PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: PixelPalette.cyan)
+                    PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: PixelPalette.gold)
+                }
+
+                HStack(spacing: 10) {
+                    PixelInfoRow(label: "WINDOW", value: percent(viewModel.snapshot.rateLimits?.secondary?.usedPercent))
+                    PixelInfoRow(label: "PLAN", value: viewModel.snapshot.rateLimits?.planType?.uppercased() ?? "LOCAL")
+                }
+
+                HStack(spacing: 10) {
+                    PixelInfoRow(label: "FILES", value: "\(viewModel.snapshot.scannedFiles)")
+                    PixelInfoRow(label: "LAST", value: relative(viewModel.snapshot.newestEventDate))
+                }
+
+                HStack {
+                    Text("LOCAL JSONL ONLY")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(PixelPalette.muted)
+                    Spacer()
+                    PixelButton(title: "QUIT", accent: PixelPalette.pink, action: onQuit)
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 26)
+            .padding(.bottom, 16)
+        }
+        .frame(width: 420, height: 284)
+        .offset(y: -4)
+    }
+
+    private var statusText: String {
+        if viewModel.errorMessage != nil {
+            return "--"
+        }
+        if let primary = viewModel.snapshot.rateLimits?.primary {
+            return "\(Int(primary.usedPercent.rounded()))%"
+        }
+        return compact(viewModel.snapshot.totalUsage.totalTokens)
+    }
+
+    private var subtitle: String {
+        if viewModel.errorMessage != nil {
+            return "scanner offline"
+        }
+        if let primary = viewModel.snapshot.rateLimits?.primary {
+            return "\(Int(primary.usedPercent.rounded()))% used - resets \(relative(primary.resetsAt))"
+        }
+        return "watching local codex usage"
+    }
+
+    private func compact(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
+    }
+
+    private func percent(_ value: Double?) -> String {
+        guard let value else {
+            return "--"
+        }
+        return "\(Int(value.rounded()))%"
+    }
+
+    private func relative(_ date: Date?) -> String {
+        guard let date else {
+            return "unknown"
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+private struct MiniUsageStrip: View {
+    let value: Double
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<10, id: \.self) { index in
+                Rectangle()
+                    .fill(Double(index) < value / 10 ? PixelPalette.lime : PixelPalette.panel)
+                    .frame(width: 7, height: 5)
+                    .overlay(Rectangle().stroke(PixelPalette.edge.opacity(0.65), lineWidth: 1))
+            }
+        }
+    }
+}
+
+private struct PixelChevron: View {
+    let expanded: Bool
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Rectangle()
+                .frame(width: 8, height: 2)
+                .offset(x: expanded ? -2 : 0, y: expanded ? 1 : 0)
+            Rectangle()
+                .frame(width: 8, height: 2)
+                .offset(x: expanded ? 2 : 0, y: expanded ? -1 : 0)
+        }
+        .foregroundStyle(PixelPalette.cyan)
+        .rotationEffect(.degrees(expanded ? 0 : 90))
+        .animation(.snappy(duration: 0.18), value: expanded)
+    }
+}
+
+private struct NotchCapShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = 18
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: radius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: 0, y: rect.maxY - radius),
+            control: CGPoint(x: 0, y: rect.maxY)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct NotchDropShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = 22
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        path.addLine(to: CGPoint(x: radius, y: rect.maxY))
+        path.addQuadCurve(
+            to: CGPoint(x: 0, y: rect.maxY - radius),
+            control: CGPoint(x: 0, y: rect.maxY)
+        )
+        path.closeSubpath()
+        return path
+    }
+}
+
 struct PixelUsagePanel: View {
     @ObservedObject var viewModel: UsageViewModel
     let onRefresh: () -> Void
@@ -413,6 +679,7 @@ private struct ErrorTile: View {
 }
 
 private enum PixelPalette {
+    static let notch = Color(red: 0.005, green: 0.006, blue: 0.008)
     static let background = Color(red: 0.07, green: 0.08, blue: 0.09)
     static let panel = Color(red: 0.12, green: 0.13, blue: 0.15)
     static let grid = Color(red: 0.22, green: 0.24, blue: 0.27).opacity(0.42)

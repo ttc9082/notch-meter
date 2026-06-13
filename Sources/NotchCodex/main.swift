@@ -5,23 +5,14 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let viewModel = UsageViewModel()
-    private let popover = NSPopover()
+    private let overlay = NotchOverlayController()
     private var timer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        if let button = statusItem.button {
-            button.title = "Codex ..."
-            button.toolTip = "Codex usage near the notch"
-            button.target = self
-            button.action = #selector(togglePopover)
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
-
-        configurePopover()
+        configureOverlay()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -32,59 +23,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refresh() {
         viewModel.refresh()
-        statusItem.button?.title = statusTitle(for: viewModel.snapshot, error: viewModel.errorMessage)
     }
 
-    private func configurePopover() {
-        popover.behavior = .transient
-        popover.animates = true
-        popover.contentSize = NSSize(width: 360, height: 348)
-        popover.contentViewController = NSHostingController(
-            rootView: PixelUsagePanel(
+    private func configureOverlay() {
+        overlay.show(
+            rootView: NotchOverlayView(
                 viewModel: viewModel,
                 onRefresh: { [weak self] in self?.refresh() },
-                onQuit: { NSApp.terminate(nil) }
+                onQuit: { NSApp.terminate(nil) },
+                onExpansionChange: { [weak self] expanded in
+                    self?.overlay.setExpanded(expanded)
+                }
             )
         )
     }
 
-    private func statusTitle(for snapshot: CodexUsageSnapshot, error: String?) -> String {
-        if error != nil {
-            return "Codex --"
-        }
+}
 
-        if let primary = snapshot.rateLimits?.primary {
-            return "Codex \(Int(primary.usedPercent.rounded()))%"
-        }
+@MainActor
+final class NotchOverlayController {
+    private let compactSize = NSSize(width: 286, height: 72)
+    private let expandedSize = NSSize(width: 420, height: 356)
+    private var panel: NSPanel?
+    private var isExpanded = false
 
-        if snapshot.totalUsage.totalTokens > 0 {
-            return "Codex \(Self.compact(snapshot.totalUsage.totalTokens))"
-        }
+    func show<Content: View>(rootView: Content) {
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: compactSize),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.level = .statusBar
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.hidesOnDeactivate = false
+        panel.isMovableByWindowBackground = false
+        panel.contentViewController = NSHostingController(rootView: rootView)
 
-        return "Codex idle"
+        self.panel = panel
+        position(size: compactSize, animated: false)
+        panel.orderFrontRegardless()
     }
 
-    private static func compact(_ value: Int) -> String {
-        if value >= 1_000_000 {
-            return String(format: "%.1fM", Double(value) / 1_000_000)
-        }
-        if value >= 1_000 {
-            return String(format: "%.1fK", Double(value) / 1_000)
-        }
-        return "\(value)"
+    func setExpanded(_ expanded: Bool) {
+        isExpanded = expanded
+        position(size: expanded ? expandedSize : compactSize, animated: true)
     }
 
-    @objc private func togglePopover() {
-        guard let button = statusItem.button else {
+    private func position(size: NSSize, animated: Bool) {
+        guard let panel else {
             return
         }
 
-        if popover.isShown {
-            popover.performClose(nil)
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let origin = NSPoint(
+            x: frame.midX - size.width / 2,
+            y: frame.maxY - size.height + 1
+        )
+        let target = NSRect(origin: origin, size: size)
+
+        if animated {
+            panel.animator().setFrame(target, display: true)
         } else {
-            viewModel.bump()
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            panel.setFrame(target, display: true)
         }
     }
 }
