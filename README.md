@@ -37,6 +37,14 @@ cd notch-codex
 swift run notch-codex
 ```
 
+## Publish
+
+Maintainers can create and push the public GitHub repository with either `gh` or `GITHUB_TOKEN`:
+
+```sh
+scripts/publish-github.sh
+```
+
 ## What It Shows
 
 - Current Codex rate-limit usage, when present in the newest local `token_count` event
