@@ -4,7 +4,7 @@ NotchCodex is a tiny open-source macOS status item for keeping Codex usage visib
 
 It reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows the latest rate-limit percentage plus today's token totals in the menu bar. No network requests are made and message content is not parsed.
 
-Planned repository: `https://github.com/ttc9082/notch-codex`
+Repository: `https://github.com/ttc9082/notch-codex`
 
 ## Status
 
