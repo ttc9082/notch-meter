@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay.show(
             rootView: NotchOverlayView(
                 viewModel: viewModel,
+                metrics: overlay.metrics,
                 onRefresh: { [weak self] in self?.refresh() },
                 onQuit: { NSApp.terminate(nil) },
                 onExpansionChange: { [weak self] expanded in
@@ -42,14 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class NotchOverlayController {
-    private let compactSize = NSSize(width: 286, height: 72)
-    private let expandedSize = NSSize(width: 420, height: 356)
+    let metrics = NotchOverlayMetrics.current()
     private var panel: NSPanel?
     private var isExpanded = false
 
     func show<Content: View>(rootView: Content) {
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: compactSize),
+            contentRect: NSRect(origin: .zero, size: metrics.compactSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -64,13 +64,13 @@ final class NotchOverlayController {
         panel.contentViewController = NSHostingController(rootView: rootView)
 
         self.panel = panel
-        position(size: compactSize, animated: false)
+        position(size: metrics.compactSize, animated: false)
         panel.orderFrontRegardless()
     }
 
     func setExpanded(_ expanded: Bool) {
         isExpanded = expanded
-        position(size: expanded ? expandedSize : compactSize, animated: true)
+        position(size: expanded ? metrics.expandedSize : metrics.compactSize, animated: true)
     }
 
     private func position(size: NSSize, animated: Bool) {
@@ -91,6 +91,47 @@ final class NotchOverlayController {
         } else {
             panel.setFrame(target, display: true)
         }
+    }
+}
+
+struct NotchOverlayMetrics {
+    var totalWidth: CGFloat
+    var notchWidth: CGFloat
+    var menuBarHeight: CGFloat
+    var expandedHeight: CGFloat
+
+    var compactSize: NSSize {
+        NSSize(width: totalWidth, height: menuBarHeight)
+    }
+
+    var expandedSize: NSSize {
+        NSSize(width: totalWidth, height: expandedHeight)
+    }
+
+    var earWidth: CGFloat {
+        max(104, (totalWidth - notchWidth) / 2)
+    }
+
+    static func current(screen: NSScreen? = NSScreen.main ?? NSScreen.screens.first) -> NotchOverlayMetrics {
+        guard let screen else {
+            return NotchOverlayMetrics(totalWidth: 448, notchWidth: 188, menuBarHeight: 32, expandedHeight: 330)
+        }
+
+        if #available(macOS 12.0, *),
+           let left = screen.auxiliaryTopLeftArea,
+           let right = screen.auxiliaryTopRightArea {
+            let notchWidth = max(140, right.minX - left.maxX)
+            let menuBarHeight = max(28, screen.safeAreaInsets.top)
+            let earWidth: CGFloat = 128
+            return NotchOverlayMetrics(
+                totalWidth: notchWidth + earWidth * 2,
+                notchWidth: notchWidth,
+                menuBarHeight: menuBarHeight,
+                expandedHeight: menuBarHeight + 294
+            )
+        }
+
+        return NotchOverlayMetrics(totalWidth: 448, notchWidth: 188, menuBarHeight: 32, expandedHeight: 330)
     }
 }
 

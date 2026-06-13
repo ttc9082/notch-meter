@@ -32,6 +32,7 @@ final class UsageViewModel: ObservableObject {
 
 struct NotchOverlayView: View {
     @ObservedObject var viewModel: UsageViewModel
+    let metrics: NotchOverlayMetrics
     let onRefresh: () -> Void
     let onQuit: () -> Void
     let onExpansionChange: (Bool) -> Void
@@ -54,11 +55,19 @@ struct NotchOverlayView: View {
 
             Spacer(minLength: 0)
         }
-        .frame(width: expanded ? 420 : 286, height: expanded ? 356 : 72, alignment: .top)
+        .frame(
+            width: metrics.totalWidth,
+            height: expanded ? metrics.expandedHeight : metrics.menuBarHeight,
+            alignment: .top
+        )
         .background(Color.clear)
         .onHover { inside in
             withAnimation(.snappy(duration: 0.18)) {
                 hover = inside
+                expanded = inside
+                if inside {
+                    viewModel.bump()
+                }
             }
         }
         .onAppear {
@@ -72,42 +81,43 @@ struct NotchOverlayView: View {
     }
 
     private var notchCap: some View {
-        Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
-                expanded.toggle()
-                viewModel.bump()
-            }
-        } label: {
-            ZStack {
-                NotchCapShape()
-                    .fill(PixelPalette.notch)
-                    .overlay(NotchCapShape().stroke(PixelPalette.edge, lineWidth: 2))
-                    .shadow(color: Color.black.opacity(0.45), radius: 14, x: 0, y: 10)
-
-                HStack(spacing: 10) {
-                    PixelStatusDot(isActive: viewModel.errorMessage == nil)
-
-                    VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 0) {
+            Button {
+                toggleExpanded()
+            } label: {
+                NotchEar(side: .left, hover: hover) {
+                    HStack(spacing: 8) {
+                        PixelStatusDot(isActive: viewModel.errorMessage == nil)
                         Text("CODEX")
-                            .font(.system(size: 15, weight: .black, design: .monospaced))
+                            .font(.system(size: 12, weight: .black, design: .monospaced))
                             .foregroundStyle(PixelPalette.ink)
-                        MiniUsageStrip(value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0)
                     }
-
-                    Text(statusText)
-                        .font(.system(size: 13, weight: .black, design: .monospaced))
-                        .foregroundStyle(PixelPalette.lime)
-                        .contentTransition(.numericText())
-
-                    PixelChevron(expanded: expanded)
                 }
-                .padding(.top, 9)
-                .scaleEffect(hover ? 1.03 : 1)
             }
-            .frame(width: expanded ? 312 : 286, height: 72)
-            .contentShape(NotchCapShape())
+            .buttonStyle(.plain)
+            .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
+
+            Color.clear
+                .frame(width: metrics.notchWidth, height: metrics.menuBarHeight)
+                .allowsHitTesting(false)
+
+            Button {
+                toggleExpanded()
+            } label: {
+                NotchEar(side: .right, hover: hover) {
+                    HStack(spacing: 6) {
+                        Text(statusText)
+                            .font(.system(size: 12, weight: .black, design: .monospaced))
+                            .foregroundStyle(PixelPalette.lime)
+                            .contentTransition(.numericText())
+                        MiniUsagePip(value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
         }
-        .buttonStyle(.plain)
+        .frame(width: metrics.totalWidth, height: metrics.menuBarHeight)
     }
 
     private var expandedDeck: some View {
@@ -170,8 +180,15 @@ struct NotchOverlayView: View {
             .padding(.top, 26)
             .padding(.bottom, 16)
         }
-        .frame(width: 420, height: 284)
-        .offset(y: -4)
+        .frame(width: metrics.totalWidth, height: metrics.expandedHeight - metrics.menuBarHeight + 8)
+        .offset(y: -1)
+    }
+
+    private func toggleExpanded() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+            expanded.toggle()
+            viewModel.bump()
+        }
     }
 
     private var statusText: String {
@@ -233,6 +250,84 @@ private struct MiniUsageStrip: View {
                     .overlay(Rectangle().stroke(PixelPalette.edge.opacity(0.65), lineWidth: 1))
             }
         }
+    }
+}
+
+private struct MiniUsagePip: View {
+    let value: Double
+
+    var body: some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: 6, height: 10)
+            .overlay(Rectangle().stroke(PixelPalette.edge.opacity(0.7), lineWidth: 1))
+    }
+
+    private var color: Color {
+        if value >= 80 {
+            return PixelPalette.pink
+        }
+        if value >= 50 {
+            return PixelPalette.gold
+        }
+        return PixelPalette.lime
+    }
+}
+
+private enum NotchEarSide {
+    case left
+    case right
+}
+
+private struct NotchEar<Content: View>: View {
+    let side: NotchEarSide
+    let hover: Bool
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ZStack(alignment: side == .left ? .leading : .trailing) {
+            NotchEarShape(side: side)
+                .fill(PixelPalette.notch)
+                .overlay(NotchEarShape(side: side).stroke(PixelPalette.edge, lineWidth: 1.5))
+                .shadow(color: Color.black.opacity(0.32), radius: hover ? 10 : 6, x: 0, y: hover ? 6 : 3)
+
+            content
+                .padding(.leading, side == .left ? 12 : 6)
+                .padding(.trailing, side == .right ? 12 : 6)
+                .offset(y: 1)
+                .scaleEffect(hover ? 1.02 : 1)
+        }
+    }
+}
+
+private struct NotchEarShape: Shape {
+    let side: NotchEarSide
+
+    func path(in rect: CGRect) -> Path {
+        let radius: CGFloat = 10
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+
+        switch side {
+        case .left:
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            path.addLine(to: CGPoint(x: radius, y: rect.maxY))
+            path.addQuadCurve(
+                to: CGPoint(x: 0, y: rect.maxY - radius),
+                control: CGPoint(x: 0, y: rect.maxY)
+            )
+        case .right:
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+            path.addQuadCurve(
+                to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+                control: CGPoint(x: rect.maxX, y: rect.maxY)
+            )
+            path.addLine(to: CGPoint(x: 0, y: rect.maxY))
+        }
+
+        path.closeSubpath()
+        return path
     }
 }
 
