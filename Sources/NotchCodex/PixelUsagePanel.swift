@@ -99,6 +99,9 @@ struct NotchOverlayView: View {
         .onChange(of: expanded) { _, newValue in
             onExpansionChange(newValue)
         }
+        .contextMenu {
+            Button("Quit Notch Codex", action: onQuit)
+        }
     }
 
     private var notchCap: some View {
@@ -157,50 +160,30 @@ struct NotchOverlayView: View {
         ZStack {
             PixelPalette.notch
 
-            VStack(alignment: .leading, spacing: 13) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("NOTCH CODEX")
-                            .font(.system(size: 18, weight: .black, design: .monospaced))
-                            .foregroundStyle(PixelPalette.ink)
-                        Text(subtitle)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(PixelPalette.muted)
-                    }
-
-                    Spacer()
-                    PixelButton(title: "SYNC", accent: PixelPalette.cyan, action: onRefresh)
-                }
-
-                PixelProgressBar(
-                    title: "5H LIMIT",
-                    value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0,
+            VStack(alignment: .leading, spacing: 12) {
+                DualLimitProgress(
+                    primary: viewModel.snapshot.rateLimits?.primary,
+                    secondary: viewModel.snapshot.rateLimits?.secondary,
                     pulse: viewModel.refreshPulse
                 )
 
-                HStack(spacing: 10) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
                     PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: PixelPalette.lime)
                     PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: PixelPalette.cyan)
                     PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: PixelPalette.gold)
+                    PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: PixelPalette.pink)
                 }
 
-                HStack(spacing: 10) {
-                    PixelInfoRow(label: "WINDOW", value: percent(viewModel.snapshot.rateLimits?.secondary?.usedPercent))
-                    PixelInfoRow(label: "PLAN", value: viewModel.snapshot.rateLimits?.planType?.uppercased() ?? "LOCAL")
-                }
+                QuotaDetailStrip(
+                    primary: viewModel.snapshot.rateLimits?.primary,
+                    secondary: viewModel.snapshot.rateLimits?.secondary,
+                    primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
+                    secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt)
+                )
 
-                HStack(spacing: 10) {
-                    PixelInfoRow(label: "FILES", value: "\(viewModel.snapshot.scannedFiles)")
-                    PixelInfoRow(label: "LAST", value: relative(viewModel.snapshot.newestEventDate))
-                }
-
-                HStack {
-                    Text("LOCAL JSONL ONLY")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(PixelPalette.muted)
-                    Spacer()
-                    PixelButton(title: "QUIT", accent: PixelPalette.pink, action: onQuit)
-                }
+                WeakStatusBar(
+                    plan: viewModel.snapshot.rateLimits?.planType?.uppercased() ?? "LOCAL"
+                )
             }
             .padding(.horizontal, 18)
             .padding(.top, 22)
@@ -236,16 +219,6 @@ struct NotchOverlayView: View {
             return PixelPalette.gold
         }
         return PixelPalette.lime
-    }
-
-    private var subtitle: String {
-        if viewModel.errorMessage != nil {
-            return "scanner offline"
-        }
-        if let primary = viewModel.snapshot.rateLimits?.primary {
-            return "\(Int(primary.usedPercent.rounded()))% used - resets \(relative(primary.resetsAt))"
-        }
-        return "watching local codex usage"
     }
 
     private func compact(_ value: Int) -> String {
@@ -328,6 +301,188 @@ private struct MiniUsagePip: View {
             return PixelPalette.gold
         }
         return PixelPalette.lime
+    }
+}
+
+private struct DualLimitProgress: View {
+    let primary: RateLimitWindow?
+    let secondary: RateLimitWindow?
+    let pulse: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            limitRow(title: "5H", window: primary, accent: color(for: primary))
+            limitRow(title: "WK", window: secondary, accent: color(for: secondary))
+        }
+        .frame(maxWidth: .infinity)
+        .scaleEffect(y: pulse ? 1.035 : 1)
+    }
+
+    private func limitRow(title: String, window: RateLimitWindow?, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .foregroundStyle(PixelPalette.muted)
+                Text("\(remainingPercent(for: window)) LEFT")
+                    .foregroundStyle(accent)
+                Spacer()
+                Text("\(usedPercent(for: window)) USED")
+                    .foregroundStyle(PixelPalette.ink)
+            }
+            .font(.system(size: 11, weight: .black, design: .monospaced))
+
+            GeometryReader { proxy in
+                let used = min(max(window?.usedPercent ?? 0, 0), 100)
+                let width = proxy.size.width * used / 100
+
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(PixelPalette.panel)
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: width)
+                    PixelTicks()
+                }
+                .overlay(Rectangle().stroke(PixelPalette.edge, lineWidth: 2))
+            }
+            .frame(height: 20)
+        }
+    }
+
+    private func usedPercent(for window: RateLimitWindow?) -> String {
+        guard let window else {
+            return "--"
+        }
+        return "\(Int(window.usedPercent.rounded()))%"
+    }
+
+    private func remainingPercent(for window: RateLimitWindow?) -> String {
+        guard let window else {
+            return "--"
+        }
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        return "\(Int(remaining.rounded()))%"
+    }
+
+    private func color(for window: RateLimitWindow?) -> Color {
+        guard let window else {
+            return PixelPalette.muted
+        }
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        if remaining <= 15 {
+            return PixelPalette.pink
+        }
+        if remaining <= 40 {
+            return PixelPalette.gold
+        }
+        return PixelPalette.lime
+    }
+}
+
+private struct QuotaDetailStrip: View {
+    let primary: RateLimitWindow?
+    let secondary: RateLimitWindow?
+    let primaryReset: String
+    let secondaryReset: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            quotaPanel(title: "5H", window: primary, reset: primaryReset)
+            quotaPanel(title: "WEEK", window: secondary, reset: secondaryReset)
+        }
+    }
+
+    private func quotaPanel(title: String, window: RateLimitWindow?, reset: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .foregroundStyle(color(for: window))
+                Spacer()
+                Text(windowSpan(for: window))
+                    .foregroundStyle(PixelPalette.muted)
+            }
+
+            HStack(spacing: 8) {
+                quotaStat("LEFT", remainingPercent(for: window), color(for: window))
+                quotaStat("USED", usedPercent(for: window), PixelPalette.ink)
+                quotaStat("RESET", reset, PixelPalette.ink)
+            }
+        }
+        .font(.system(size: 10, weight: .black, design: .monospaced))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PixelPalette.panel.opacity(0.78))
+        .overlay(Rectangle().stroke(PixelPalette.edge.opacity(0.75), lineWidth: 2))
+    }
+
+    private func quotaStat(_ label: String, _ value: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .foregroundStyle(PixelPalette.muted)
+            Text(value)
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func usedPercent(for window: RateLimitWindow?) -> String {
+        guard let window else {
+            return "--"
+        }
+        return "\(Int(window.usedPercent.rounded()))%"
+    }
+
+    private func remainingPercent(for window: RateLimitWindow?) -> String {
+        guard let window else {
+            return "--"
+        }
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        return "\(Int(remaining.rounded()))%"
+    }
+
+    private func color(for window: RateLimitWindow?) -> Color {
+        guard let window else {
+            return PixelPalette.muted
+        }
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        if remaining <= 15 {
+            return PixelPalette.pink
+        }
+        if remaining <= 40 {
+            return PixelPalette.gold
+        }
+        return PixelPalette.lime
+    }
+
+    private func windowSpan(for window: RateLimitWindow?) -> String {
+        guard let minutes = window?.windowMinutes else {
+            return "--"
+        }
+        if minutes >= 60 * 24 {
+            return "\(minutes / (60 * 24))D"
+        }
+        if minutes >= 60 {
+            return "\(minutes / 60)H"
+        }
+        return "\(minutes)M"
+    }
+}
+
+private struct WeakStatusBar: View {
+    let plan: String
+
+    var body: some View {
+        HStack {
+            Text("LOCAL JSONL")
+            Spacer()
+            Text(plan)
+        }
+        .font(.system(size: 9, weight: .black, design: .monospaced))
+        .foregroundStyle(PixelPalette.muted.opacity(0.62))
+        .padding(.top, 1)
     }
 }
 
