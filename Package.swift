@@ -3,24 +3,24 @@
 import PackageDescription
 
 let package = Package(
-    name: "NotchCodex",
+    name: "NotchMeter",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "notch-codex", targets: ["NotchCodex"]),
+        .executable(name: "notch-meter", targets: ["NotchMeter"]),
         .executable(name: "usage-fixture-check", targets: ["UsageFixtureCheck"]),
-        .library(name: "CodexUsageCore", targets: ["CodexUsageCore"])
+        .library(name: "AgentUsageCore", targets: ["AgentUsageCore"])
     ],
     targets: [
-        .target(name: "CodexUsageCore"),
+        .target(name: "AgentUsageCore"),
         .executableTarget(
-            name: "NotchCodex",
-            dependencies: ["CodexUsageCore"]
+            name: "NotchMeter",
+            dependencies: ["AgentUsageCore"]
         ),
         .executableTarget(
             name: "UsageFixtureCheck",
-            dependencies: ["CodexUsageCore"]
+            dependencies: ["AgentUsageCore"]
         )
     ]
 )

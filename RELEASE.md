@@ -5,8 +5,8 @@
 Initial open-source prototype.
 
 - Reads local Codex `token_count` events from `~/.codex/sessions`
-- Shows current usage in a macOS menu bar item near the notch
-- Displays token totals, rate-limit windows, session count, and last update time
+- Shows current coding-agent usage in a notch-integrated macOS HUD
+- Displays token totals and rate-limit windows
 - Includes a fixture check target for CI-friendly parser verification
 
 This release is source-only. A signed `.app` bundle is planned.

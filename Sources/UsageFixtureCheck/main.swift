@@ -1,8 +1,8 @@
-import CodexUsageCore
+import AgentUsageCore
 import Foundation
 
 let root = FileManager.default.temporaryDirectory
-    .appendingPathComponent("notch-codex-fixture-check")
+    .appendingPathComponent("notch-meter-fixture-check")
     .appendingPathComponent(UUID().uuidString, isDirectory: true)
 
 try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

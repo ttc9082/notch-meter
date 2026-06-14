@@ -1,4 +1,4 @@
-import CodexUsageCore
+import AgentUsageCore
 import SwiftUI
 
 private enum NotchTheme: CaseIterable {
@@ -417,7 +417,7 @@ struct NotchOverlayView: View {
             onExpansionChange(newValue)
         }
         .contextMenu {
-            Button("Quit Notch Codex", action: onQuit)
+            Button("Quit NotchMeter", action: onQuit)
         }
     }
 
@@ -1014,7 +1014,7 @@ struct PixelUsagePanel: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     PixelStatusDot(isActive: viewModel.errorMessage == nil)
-                    Text("NOTCH CODEX")
+                    Text("NOTCH METER")
                         .font(.system(size: 18, weight: .black, design: .monospaced))
                         .foregroundStyle(PixelPalette.ink)
                 }

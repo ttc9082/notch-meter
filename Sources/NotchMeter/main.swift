@@ -1,5 +1,5 @@
 import AppKit
-import CodexUsageCore
+import AgentUsageCore
 import Foundation
 import SwiftUI
 
