@@ -135,6 +135,170 @@ private enum NotchTheme: CaseIterable {
             return Color(red: 0.78, green: 0.24, blue: 0.14)
         }
     }
+
+    var fontDesign: Font.Design {
+        switch self {
+        case .pixel, .orbit, .cobalt:
+            return .monospaced
+        case .longTable:
+            return .serif
+        }
+    }
+
+    var labelWeight: Font.Weight {
+        switch self {
+        case .pixel, .orbit:
+            return .black
+        case .cobalt:
+            return .semibold
+        case .longTable:
+            return .bold
+        }
+    }
+
+    var valueWeight: Font.Weight {
+        switch self {
+        case .pixel, .orbit:
+            return .black
+        case .cobalt:
+            return .heavy
+        case .longTable:
+            return .bold
+        }
+    }
+
+    var contentSpacing: CGFloat {
+        switch self {
+        case .pixel:
+            return 12
+        case .orbit:
+            return 14
+        case .cobalt:
+            return 10
+        case .longTable:
+            return 13
+        }
+    }
+
+    var topPadding: CGFloat {
+        switch self {
+        case .orbit:
+            return 15
+        case .cobalt:
+            return 14
+        default:
+            return 16
+        }
+    }
+
+    var horizontalPadding: CGFloat {
+        switch self {
+        case .cobalt:
+            return 16
+        case .orbit:
+            return 20
+        default:
+            return 18
+        }
+    }
+
+    var bottomPadding: CGFloat {
+        16
+    }
+
+    var gridSpacing: CGFloat {
+        switch self {
+        case .cobalt:
+            return 8
+        case .orbit:
+            return 12
+        default:
+            return 10
+        }
+    }
+
+    var cardHeight: CGFloat {
+        switch self {
+        case .pixel:
+            return 68
+        case .orbit:
+            return 76
+        case .cobalt:
+            return 64
+        case .longTable:
+            return 72
+        }
+    }
+
+    var cardCorner: CGFloat {
+        switch self {
+        case .pixel, .cobalt:
+            return 0
+        case .orbit:
+            return 6
+        case .longTable:
+            return 3
+        }
+    }
+
+    var cardBorderWidth: CGFloat {
+        switch self {
+        case .pixel:
+            return 2
+        case .orbit:
+            return 2.5
+        case .cobalt:
+            return 1
+        case .longTable:
+            return 1.5
+        }
+    }
+
+    var progressHeight: CGFloat {
+        switch self {
+        case .pixel:
+            return 20
+        case .orbit:
+            return 18
+        case .cobalt:
+            return 14
+        case .longTable:
+            return 22
+        }
+    }
+
+    var progressCorner: CGFloat {
+        switch self {
+        case .pixel:
+            return 0
+        case .orbit:
+            return 5
+        case .cobalt:
+            return 2
+        case .longTable:
+            return 11
+        }
+    }
+
+    var valueFontSize: CGFloat {
+        switch self {
+        case .pixel, .orbit:
+            return 28
+        case .cobalt:
+            return 26
+        case .longTable:
+            return 27
+        }
+    }
+
+    var labelFontSize: CGFloat {
+        switch self {
+        case .longTable:
+            return 11
+        default:
+            return 10
+        }
+    }
 }
 
 @MainActor
@@ -317,7 +481,7 @@ struct NotchOverlayView: View {
         ZStack(alignment: .top) {
             PixelPalette.notch
 
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: theme.contentSpacing) {
                 DualLimitProgress(
                     primary: viewModel.snapshot.rateLimits?.primary,
                     secondary: viewModel.snapshot.rateLimits?.secondary,
@@ -327,16 +491,16 @@ struct NotchOverlayView: View {
                     theme: theme
                 )
 
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
                     PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: theme.accentA, theme: theme)
                     PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: theme.accentB, theme: theme)
                     PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: theme.accentC, theme: theme)
                     PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: theme.accentD, theme: theme)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 22)
-            .padding(.bottom, 24)
+            .padding(.horizontal, theme.horizontalPadding)
+            .padding(.top, theme.topPadding)
+            .padding(.bottom, theme.bottomPadding)
         }
         .frame(width: metrics.totalWidth, height: metrics.expandedHeight - metrics.menuBarHeight)
     }
@@ -505,24 +669,35 @@ private struct DualLimitProgress: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
-            .font(.system(size: 11, weight: .black, design: .monospaced))
+            .font(.system(size: 11, weight: theme.labelWeight, design: theme.fontDesign))
 
             GeometryReader { proxy in
                 let remaining = max(0, min(100, 100 - (window?.usedPercent ?? 100)))
                 let width = proxy.size.width * remaining / 100
 
                 ZStack(alignment: .leading) {
-                    Rectangle()
+                    progressShape
                         .fill(theme.track)
-                    Rectangle()
+                    progressShape
                         .fill(accent)
                         .frame(width: width)
-                    PixelTicks()
+                    if theme == .pixel || theme == .orbit {
+                        PixelTicks()
+                            .opacity(theme == .pixel ? 1 : 0.45)
+                    }
                 }
-                .overlay(Rectangle().stroke(theme.edge, lineWidth: 2))
+                .clipShape(RoundedRectangle(cornerRadius: theme.progressCorner, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: theme.progressCorner, style: .continuous)
+                        .stroke(theme.edge, lineWidth: theme.cardBorderWidth)
+                )
             }
-            .frame(height: 20)
+            .frame(height: theme.progressHeight)
         }
+    }
+
+    private var progressShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: theme.progressCorner, style: .continuous)
     }
 
     private func usedPercent(for window: RateLimitWindow?) -> String {
@@ -1025,17 +1200,25 @@ private struct PixelMetricCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
-                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .font(.system(size: theme.labelFontSize, weight: theme.labelWeight, design: theme.fontDesign))
                 .foregroundStyle(theme.muted)
             Text(value)
-                .font(.system(size: 24, weight: .black, design: .monospaced))
+                .font(.system(size: theme.valueFontSize, weight: theme.valueWeight, design: theme.fontDesign))
                 .foregroundStyle(tint)
                 .minimumScaleFactor(0.72)
         }
+        .padding(.horizontal, theme == .cobalt ? 12 : 10)
+        .padding(.vertical, theme == .cobalt ? 8 : 10)
+        .frame(height: theme.cardHeight, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(theme.panel)
-        .overlay(Rectangle().stroke(hover ? tint : theme.edge, lineWidth: 2))
+        .background(
+            RoundedRectangle(cornerRadius: theme.cardCorner, style: .continuous)
+                .fill(theme.panel)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: theme.cardCorner, style: .continuous)
+                .stroke(hover ? tint : theme.edge, lineWidth: theme.cardBorderWidth)
+        )
         .offset(y: hover ? -2 : 0)
         .onHover { inside in
             withAnimation(.snappy(duration: 0.16)) {
