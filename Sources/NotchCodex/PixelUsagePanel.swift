@@ -424,7 +424,8 @@ struct NotchOverlayView: View {
                             CompactRemainingLabel(
                                 label: "5H",
                                 value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
-                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary)
+                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary),
+                                theme: theme
                             )
                         }
                     }
@@ -452,7 +453,8 @@ struct NotchOverlayView: View {
                             CompactRemainingLabel(
                                 label: "WK",
                                 value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
-                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary)
+                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary),
+                                theme: theme
                             )
                         }
                     }
@@ -528,16 +530,16 @@ struct NotchOverlayView: View {
 
     private func remainingColor(for window: RateLimitWindow?) -> Color {
         guard viewModel.errorMessage == nil, let window else {
-            return PixelPalette.muted
+            return theme.muted
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
         if remaining <= 15 {
-            return PixelPalette.pink
+            return theme.accentD
         }
         if remaining <= 40 {
-            return PixelPalette.gold
+            return theme.accentC
         }
-        return PixelPalette.lime
+        return theme.accentA
     }
 
     private func compact(_ value: Int) -> String {
@@ -586,19 +588,31 @@ private struct CompactRemainingLabel: View {
     let label: String
     let value: String
     let tint: Color
+    let theme: NotchTheme
 
     var body: some View {
         HStack(spacing: 4) {
             Text(label)
-                .foregroundStyle(PixelPalette.muted)
+                .foregroundStyle(theme.muted)
             Text(value)
                 .foregroundStyle(tint)
                 .contentTransition(.numericText())
         }
-        .font(.system(size: 12, weight: .black, design: .monospaced))
+        .font(.system(size: compactFontSize, weight: theme.labelWeight, design: theme.fontDesign))
         .lineLimit(1)
         .minimumScaleFactor(0.72)
         .padding(.horizontal, 6)
+    }
+
+    private var compactFontSize: CGFloat {
+        switch theme {
+        case .longTable:
+            return 12
+        case .cobalt:
+            return 11
+        default:
+            return 12
+        }
     }
 }
 
