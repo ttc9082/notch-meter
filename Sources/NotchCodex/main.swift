@@ -46,6 +46,7 @@ final class NotchOverlayController {
     let metrics = NotchOverlayMetrics.current()
     private var panel: NSPanel?
     private var isExpanded = false
+    private var collapseWorkItem: DispatchWorkItem?
 
     func show<Content: View>(rootView: Content) {
         let panel = NSPanel(
@@ -64,16 +65,32 @@ final class NotchOverlayController {
         panel.contentViewController = NSHostingController(rootView: rootView)
 
         self.panel = panel
-        position(size: metrics.compactSize, animated: false)
+        position(size: metrics.compactSize)
         panel.orderFrontRegardless()
     }
 
     func setExpanded(_ expanded: Bool) {
         isExpanded = expanded
-        position(size: expanded ? metrics.expandedSize : metrics.compactSize, animated: true)
+        collapseWorkItem?.cancel()
+
+        if expanded {
+            position(size: metrics.expandedSize)
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self, !self.isExpanded else {
+                    return
+                }
+                self.position(size: self.metrics.compactSize)
+            }
+        }
+        collapseWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
-    private func position(size: NSSize, animated: Bool) {
+    private func position(size: NSSize) {
         guard let panel else {
             return
         }
@@ -85,16 +102,7 @@ final class NotchOverlayController {
             y: frame.maxY - size.height
         )
         let target = NSRect(origin: origin, size: size)
-
-        if animated {
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = target.height > panel.frame.height ? 0.24 : 0.18
-                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                panel.animator().setFrame(target, display: true)
-            }
-        } else {
-            panel.setFrame(target, display: true)
-        }
+        panel.setFrame(target, display: true)
     }
 }
 

@@ -45,12 +45,20 @@ struct NotchOverlayView: View {
         .easeInOut(duration: expanded ? 0.24 : 0.18)
     }
 
+    private var expansionProgress: CGFloat {
+        expanded ? 1 : 0
+    }
+
+    private var visibleHeight: CGFloat {
+        metrics.menuBarHeight + (metrics.expandedHeight - metrics.menuBarHeight) * expansionProgress
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             UnifiedNotchShape()
                 .fill(PixelPalette.notch)
-                .shadow(color: Color.black.opacity(expanded ? 0.48 : 0.26), radius: expanded ? 18 : 8, x: 0, y: expanded ? 12 : 4)
-                .frame(height: expanded ? metrics.expandedHeight : metrics.menuBarHeight)
+                .shadow(color: Color.black.opacity(0.34), radius: 12, x: 0, y: 6)
+                .frame(height: visibleHeight)
                 .animation(expansionAnimation, value: expanded)
 
             VStack(spacing: 0) {
@@ -58,7 +66,7 @@ struct NotchOverlayView: View {
 
                 expandedDeck
                     .opacity(expanded ? 1 : 0)
-                    .frame(height: expanded ? metrics.expandedHeight - metrics.menuBarHeight : 0, alignment: .top)
+                    .frame(height: (metrics.expandedHeight - metrics.menuBarHeight) * expansionProgress, alignment: .top)
                     .clipped()
                     .allowsHitTesting(expanded)
                     .animation(expansionAnimation, value: expanded)
@@ -68,11 +76,11 @@ struct NotchOverlayView: View {
         }
         .frame(
             width: metrics.totalWidth,
-            height: expanded ? metrics.expandedHeight : metrics.menuBarHeight,
+            height: metrics.expandedHeight,
             alignment: .top
         )
-        .clipShape(UnifiedNotchShape())
-        .contentShape(UnifiedNotchShape())
+        .clipShape(TopAnchoredNotchMask(height: visibleHeight))
+        .contentShape(TopAnchoredNotchMask(height: visibleHeight))
         .background(Color.clear)
         .onHover { inside in
             withAnimation(.easeInOut(duration: inside ? 0.24 : 0.18)) {
@@ -133,7 +141,6 @@ struct NotchOverlayView: View {
                 .buttonStyle(.plain)
                 .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
             }
-            .scaleEffect(hover ? 1.012 : 1)
         }
         .frame(width: metrics.totalWidth, height: metrics.menuBarHeight)
     }
@@ -341,6 +348,24 @@ private struct UnifiedNotchShape: Shape {
         )
         path.closeSubpath()
         return path
+    }
+}
+
+private struct TopAnchoredNotchMask: Shape {
+    var height: CGFloat
+
+    var animatableData: CGFloat {
+        get { height }
+        set { height = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        UnifiedNotchShape().path(in: CGRect(
+            x: rect.minX,
+            y: rect.minY,
+            width: rect.width,
+            height: min(max(0, height), rect.height)
+        ))
     }
 }
 
