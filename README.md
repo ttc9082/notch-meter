@@ -2,7 +2,7 @@
 
 NotchMeter is a tiny open-source macOS notch HUD for keeping coding-agent and model usage visible without leaving the workspace.
 
-The first provider reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows rate-limit windows plus today's token totals. NotchMeter can also try the official Codex Enterprise Analytics API when configured, then fall back to local data. The project is intentionally provider-ready so future versions can add other coding agents and models, such as Claude Code.
+The first provider reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows rate-limit windows plus today's token totals. NotchMeter can also try Codex subscription-account usage through the same ChatGPT OAuth credentials used by Codex, then fall back to local data. The project is intentionally provider-ready so future versions can add other coding agents and models, such as Claude Code.
 
 Repository: `https://github.com/ttc9082/notch-meter`
 
@@ -14,7 +14,7 @@ This is an early prototype:
 - notch-integrated floating pixel HUD: working
 - small microinteractions for refresh, hover, status, and usage bars: working
 - local Codex token/rate-limit provider: working
-- remote Codex Analytics provider: experimental
+- remote Codex subscription provider: experimental
 - additional coding-agent/model providers: planned
 - NotchNook or other notch-widget host: planned
 - packaged `.app` / `.dmg` release workflow: working
@@ -53,20 +53,28 @@ NOTCHMETER_CODEX_SOURCE=auto swift run notch-meter
 
 Supported values:
 
-- `auto`: try the remote Codex Analytics API when configured, otherwise read local Codex session files.
-- `remote`: require the remote Codex Analytics API.
+- `auto`: try remote Codex subscription usage from your Codex login, otherwise read local Codex session files.
+- `remote`: require remote Codex subscription usage.
 - `local`: only read local Codex session files.
 
-Remote Codex analytics requires a ChatGPT Enterprise/Business workspace with Codex Analytics API access. Configure it with:
+Remote subscription usage reads `~/.codex/auth.json` by default, using the same ChatGPT OAuth cache created by Codex sign-in. It calls the ChatGPT Codex usage endpoint and refreshes the OAuth token when needed.
+
+To force remote mode:
 
 ```sh
 export NOTCHMETER_CODEX_SOURCE=remote
-export NOTCHMETER_CODEX_WORKSPACE_ID="..."
-export NOTCHMETER_CODEX_ANALYTICS_API_KEY="..."
 swift run notch-meter
 ```
 
-Codex access tokens and ChatGPT sign-in authorize Codex local workflows, but OpenAI's public docs do not currently describe a personal real-time quota endpoint for the 5-hour and weekly rate-limit windows. Until that exists, NotchMeter uses remote analytics for token totals and keeps using the newest local Codex rate-limit event to fill live quota windows.
+For advanced setups, you can pass credentials through the environment instead of the Codex auth cache:
+
+```sh
+export NOTCHMETER_CODEX_ACCESS_TOKEN="..."
+export NOTCHMETER_CODEX_REFRESH_TOKEN="..."
+swift run notch-meter
+```
+
+The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data.
 
 ## Install From Source
 
@@ -93,19 +101,19 @@ git push origin v0.1.0
 
 ## What It Shows
 
-- Current provider rate-limit usage, when present in the newest local usage event
+- Current provider rate-limit usage
 - Today's total, input, output, cached input, and reasoning tokens
-- 5-hour and weekly windows when Codex records them locally
+- 5-hour and weekly windows when available from remote Codex subscription usage or local Codex events
 
 ## Privacy
 
-NotchMeter only reads local usage files and only extracts numeric usage fields from supported provider events. For the current Codex provider, it reads:
+In local mode, NotchMeter only reads local usage files and only extracts numeric usage fields from supported provider events. For the current Codex provider, it reads:
 
 - `payload.info.total_token_usage`
 - `payload.info.last_token_usage`
 - `payload.rate_limits`
 
-It does not read, store, upload, or display prompt/response text.
+In remote Codex mode, NotchMeter reads Codex OAuth credentials from `~/.codex/auth.json` or environment variables and sends an authenticated usage request to OpenAI's ChatGPT Codex backend. It does not read, store, upload, or display prompt/response text.
 
 ## Roadmap
 
