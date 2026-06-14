@@ -109,12 +109,11 @@ struct NotchOverlayView: View {
                 Button {
                     toggleExpanded()
                 } label: {
-                    HStack(spacing: 8) {
-                        PixelStatusDot(isActive: viewModel.errorMessage == nil)
-                        Text("5H")
-                            .font(.system(size: 12, weight: .black, design: .monospaced))
-                            .foregroundStyle(PixelPalette.ink)
-                    }
+                    CompactRemainingLabel(
+                        label: "5H",
+                        value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
+                        tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary)
+                    )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .contentShape(Rectangle())
                 }
@@ -128,13 +127,11 @@ struct NotchOverlayView: View {
                 Button {
                     toggleExpanded()
                 } label: {
-                    HStack(spacing: 6) {
-                        Text(statusText)
-                            .font(.system(size: 12, weight: .black, design: .monospaced))
-                            .foregroundStyle(PixelPalette.lime)
-                            .contentTransition(.numericText())
-                        MiniUsagePip(value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0)
-                    }
+                    CompactRemainingLabel(
+                        label: "WK",
+                        value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
+                        tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary)
+                    )
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .contentShape(Rectangle())
                 }
@@ -219,14 +216,26 @@ struct NotchOverlayView: View {
         }
     }
 
-    private var statusText: String {
-        if viewModel.errorMessage != nil {
+    private func remainingText(for window: RateLimitWindow?) -> String {
+        guard viewModel.errorMessage == nil, let window else {
             return "--"
         }
-        if let primary = viewModel.snapshot.rateLimits?.primary {
-            return "\(Int(primary.usedPercent.rounded()))%"
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        return "\(Int(remaining.rounded()))%"
+    }
+
+    private func remainingColor(for window: RateLimitWindow?) -> Color {
+        guard viewModel.errorMessage == nil, let window else {
+            return PixelPalette.muted
         }
-        return compact(viewModel.snapshot.totalUsage.totalTokens)
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        if remaining <= 15 {
+            return PixelPalette.pink
+        }
+        if remaining <= 40 {
+            return PixelPalette.gold
+        }
+        return PixelPalette.lime
     }
 
     private var subtitle: String {
@@ -278,6 +287,26 @@ private struct MiniUsageStrip: View {
                     .overlay(Rectangle().stroke(PixelPalette.edge.opacity(0.65), lineWidth: 1))
             }
         }
+    }
+}
+
+private struct CompactRemainingLabel: View {
+    let label: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(label)
+                .foregroundStyle(PixelPalette.muted)
+            Text(value)
+                .foregroundStyle(tint)
+                .contentTransition(.numericText())
+        }
+        .font(.system(size: 12, weight: .black, design: .monospaced))
+        .lineLimit(1)
+        .minimumScaleFactor(0.72)
+        .padding(.horizontal, 6)
     }
 }
 
