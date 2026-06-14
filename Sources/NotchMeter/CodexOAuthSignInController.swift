@@ -6,18 +6,16 @@ import Network
 
 @MainActor
 final class CodexOAuthSignInController {
-    private let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
-    private let authorizeURL = URL(string: "https://auth.openai.com/oauth/authorize")!
-    private let tokenURL = URL(string: "https://auth.openai.com/oauth/token")!
     private let redirectURI = "http://127.0.0.1:1455/auth/callback"
     private var pendingTask: Task<CodexOAuthCredentials, Error>?
 
-    func signIn() async throws -> CodexOAuthCredentials {
+    func signIn(provider: AgentUsageProvider) async throws -> CodexOAuthCredentials {
         if let pendingTask {
             return try await pendingTask.value
         }
 
         let task = Task<CodexOAuthCredentials, Error> { @MainActor in
+            let config = OAuthProviderConfig(provider: provider)
             let verifier = PKCE.randomVerifier()
             let challenge = PKCE.challenge(for: verifier)
             let state = PKCE.randomVerifier(length: 32)
@@ -25,7 +23,7 @@ final class CodexOAuthSignInController {
 
             try await listener.start()
 
-            guard let authURL = authorizationURL(codeChallenge: challenge, state: state) else {
+            guard let authURL = authorizationURL(config: config, codeChallenge: challenge, state: state) else {
                 listener.stop()
                 throw CodexRemoteUsageError.invalidURL
             }
@@ -37,8 +35,8 @@ final class CodexOAuthSignInController {
             do {
                 let code = try await listener.waitForCode()
                 listener.stop()
-                let credentials = try await exchange(code: code, verifier: verifier)
-                try CodexOAuthKeychainStore.shared.save(credentials)
+                let credentials = try await exchange(config: config, code: code, verifier: verifier, state: state)
+                try CodexOAuthKeychainStore.shared.save(credentials, provider: provider)
                 return credentials
             } catch {
                 listener.stop()
@@ -53,38 +51,56 @@ final class CodexOAuthSignInController {
         return try await task.value
     }
 
-    func signOut() {
-        try? CodexOAuthKeychainStore.shared.delete()
+    func signOut(provider: AgentUsageProvider) {
+        try? CodexOAuthKeychainStore.shared.delete(provider: provider)
     }
 
-    private func authorizationURL(codeChallenge: String, state: String) -> URL? {
-        var components = URLComponents(url: authorizeURL, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+    private func authorizationURL(config: OAuthProviderConfig, codeChallenge: String, state: String) -> URL? {
+        var components = URLComponents(url: config.authorizeURL, resolvingAgainstBaseURL: false)
+        var queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "client_id", value: clientID),
+            URLQueryItem(name: "client_id", value: config.clientID),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
-            URLQueryItem(name: "scope", value: "openid profile email offline_access"),
+            URLQueryItem(name: "scope", value: config.scope),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
-            URLQueryItem(name: "id_token_add_organizations", value: "true"),
-            URLQueryItem(name: "originator", value: "openai_native"),
             URLQueryItem(name: "state", value: state)
         ]
+        queryItems.append(contentsOf: config.extraQueryItems)
+        components?.queryItems = queryItems
         return components?.url
     }
 
-    private func exchange(code: String, verifier: String) async throws -> CodexOAuthCredentials {
-        var request = URLRequest(url: tokenURL)
+    private func exchange(
+        config: OAuthProviderConfig,
+        code: String,
+        verifier: String,
+        state: String
+    ) async throws -> CodexOAuthCredentials {
+        var request = URLRequest(url: config.tokenURL)
         request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = formBody([
-            "grant_type": "authorization_code",
-            "client_id": clientID,
-            "code": code,
-            "redirect_uri": redirectURI,
-            "code_verifier": verifier
-        ])
+        switch config.tokenBody {
+        case .form:
+            request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+            request.httpBody = formBody([
+                "grant_type": "authorization_code",
+                "client_id": config.clientID,
+                "code": code,
+                "redirect_uri": redirectURI,
+                "code_verifier": verifier
+            ])
+        case .json:
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: [
+                "grant_type": "authorization_code",
+                "client_id": config.clientID,
+                "code": code,
+                "state": state,
+                "redirect_uri": redirectURI,
+                "code_verifier": verifier
+            ])
+        }
 
         let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse,
@@ -132,6 +148,44 @@ final class CodexOAuthSignInController {
             return Date().addingTimeInterval(seconds)
         }
         return nil
+    }
+}
+
+private struct OAuthProviderConfig {
+    enum TokenBody {
+        case form
+        case json
+    }
+
+    let provider: AgentUsageProvider
+    let clientID: String
+    let authorizeURL: URL
+    let tokenURL: URL
+    let scope: String
+    let extraQueryItems: [URLQueryItem]
+    let tokenBody: TokenBody
+
+    init(provider: AgentUsageProvider) {
+        self.provider = provider
+        switch provider {
+        case .codex:
+            clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+            authorizeURL = URL(string: "https://auth.openai.com/oauth/authorize")!
+            tokenURL = URL(string: "https://auth.openai.com/oauth/token")!
+            scope = "openid profile email offline_access"
+            extraQueryItems = [
+                URLQueryItem(name: "id_token_add_organizations", value: "true"),
+                URLQueryItem(name: "originator", value: "openai_native")
+            ]
+            tokenBody = .form
+        case .claude:
+            clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+            authorizeURL = URL(string: "https://claude.ai/oauth/authorize")!
+            tokenURL = URL(string: "https://api.anthropic.com/v1/oauth/token")!
+            scope = "org:create_api_key user:profile user:inference"
+            extraQueryItems = []
+            tokenBody = .json
+        }
     }
 }
 

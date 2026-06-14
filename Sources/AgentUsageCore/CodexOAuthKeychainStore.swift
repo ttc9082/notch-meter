@@ -4,13 +4,12 @@ import Security
 public final class CodexOAuthKeychainStore: @unchecked Sendable {
     public static let shared = CodexOAuthKeychainStore()
 
-    private let service = "NotchMeter.CodexOAuth"
-    private let account = "CodexSubscription"
+    private let service = "NotchMeter.AgentOAuth"
 
     public init() {}
 
-    public func load() throws -> CodexOAuthCredentials? {
-        var query = baseQuery()
+    public func load(provider: AgentUsageProvider = .codex) throws -> CodexOAuthCredentials? {
+        var query = baseQuery(provider: provider)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
 
@@ -26,9 +25,9 @@ public final class CodexOAuthKeychainStore: @unchecked Sendable {
         return try JSONDecoder().decode(CodexOAuthCredentials.self, from: data)
     }
 
-    public func save(_ credentials: CodexOAuthCredentials) throws {
+    public func save(_ credentials: CodexOAuthCredentials, provider: AgentUsageProvider = .codex) throws {
         let data = try JSONEncoder().encode(credentials)
-        var query = baseQuery()
+        var query = baseQuery(provider: provider)
         let attributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
@@ -50,18 +49,18 @@ public final class CodexOAuthKeychainStore: @unchecked Sendable {
         }
     }
 
-    public func delete() throws {
-        let status = SecItemDelete(baseQuery() as CFDictionary)
+    public func delete(provider: AgentUsageProvider = .codex) throws {
+        let status = SecItemDelete(baseQuery(provider: provider) as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw KeychainError(status: status)
         }
     }
 
-    private func baseQuery() -> [String: Any] {
+    private func baseQuery(provider: AgentUsageProvider) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: provider.rawValue
         ]
     }
 }

@@ -32,8 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 viewModel: viewModel,
                 metrics: overlay.metrics,
                 onRefresh: { [weak self] in self?.refresh() },
-                onSignIn: { [weak self] in self?.signIn() },
-                onSignOut: { [weak self] in self?.signOut() },
+                onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },
+                onSignIn: { [weak self] provider in self?.signIn(provider: provider) },
+                onSignOut: { [weak self] provider in self?.signOut(provider: provider) },
                 onQuit: { NSApp.terminate(nil) },
                 onExpansionChange: { [weak self] expanded in
                     self?.overlay.setExpanded(expanded)
@@ -42,14 +43,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func signIn() {
-        viewModel.signIn { [signInController] in
-            try await signInController.signIn()
+    private func selectProvider(_ provider: AgentUsageProvider) {
+        viewModel.selectProvider(provider)
+    }
+
+    private func signIn(provider: AgentUsageProvider) {
+        viewModel.signIn(provider: provider) { [signInController] provider in
+            try await signInController.signIn(provider: provider)
         }
     }
 
-    private func signOut() {
-        signInController.signOut()
+    private func signOut(provider: AgentUsageProvider) {
+        signInController.signOut(provider: provider)
         refresh()
     }
 

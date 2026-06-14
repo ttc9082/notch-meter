@@ -437,6 +437,8 @@ final class UsageViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var refreshPulse = false
     @Published var authMessage: String?
+    @Published var selectedProvider: AgentUsageProvider = UserDefaults.standard.string(forKey: "selectedProvider")
+        .flatMap(AgentUsageProvider.init(rawValue:)) ?? .codex
 
     private let usageService = CodexUsageService()
     private var refreshTask: Task<Void, Never>?
@@ -448,9 +450,10 @@ final class UsageViewModel: ObservableObject {
         }
 
         refreshTask?.cancel()
+        let provider = selectedProvider
         refreshTask = Task { [usageService] in
             do {
-                let nextSnapshot = try await usageService.todaySnapshot()
+                let nextSnapshot = try await usageService.todaySnapshot(provider: provider)
                 guard !Task.isCancelled else {
                     return
                 }
@@ -474,16 +477,28 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
-    func signIn(_ action: @escaping () async throws -> CodexOAuthCredentials) {
-        authMessage = "Opening OpenAI sign-in..."
+    func selectProvider(_ provider: AgentUsageProvider) {
+        selectedProvider = provider
+        UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
+        authMessage = "Using \(provider.displayName)"
+        refresh()
+    }
+
+    func signIn(
+        provider: AgentUsageProvider,
+        _ action: @escaping (AgentUsageProvider) async throws -> CodexOAuthCredentials
+    ) {
+        authMessage = "Opening \(provider.displayName) sign-in..."
         signInTask?.cancel()
         signInTask = Task {
             do {
-                _ = try await action()
+                _ = try await action(provider)
                 guard !Task.isCancelled else {
                     return
                 }
-                authMessage = "OpenAI sign-in complete"
+                selectedProvider = provider
+                UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
+                authMessage = "\(provider.displayName) sign-in complete"
                 refresh()
             } catch {
                 guard !Task.isCancelled else {
@@ -499,8 +514,9 @@ struct NotchOverlayView: View {
     @ObservedObject var viewModel: UsageViewModel
     let metrics: NotchOverlayMetrics
     let onRefresh: () -> Void
-    let onSignIn: () -> Void
-    let onSignOut: () -> Void
+    let onSelectProvider: (AgentUsageProvider) -> Void
+    let onSignIn: (AgentUsageProvider) -> Void
+    let onSignOut: (AgentUsageProvider) -> Void
     let onQuit: () -> Void
     let onExpansionChange: (Bool) -> Void
 
@@ -571,8 +587,20 @@ struct NotchOverlayView: View {
             onExpansionChange(newValue)
         }
         .contextMenu {
-            Button("Sign in with OpenAI", action: onSignIn)
-            Button("Clear NotchMeter OpenAI Sign-In", action: onSignOut)
+            ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
+                Button("Use \(provider.displayName)\(provider == viewModel.selectedProvider ? " (current)" : "")") {
+                    onSelectProvider(provider)
+                }
+            }
+            Divider()
+            ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
+                Button("Sign in with \(provider.displayName)") {
+                    onSignIn(provider)
+                }
+            }
+            Button("Clear \(viewModel.selectedProvider.displayName) Sign-In") {
+                onSignOut(viewModel.selectedProvider)
+            }
             Divider()
             Button("Quit NotchMeter", action: onQuit)
         }

@@ -37,7 +37,8 @@ extension CodexRemoteUsageError: LocalizedError {
 public final class CodexUsageService: @unchecked Sendable {
     private let mode: CodexUsageSourceMode
     private let localReader: CodexUsageReader
-    private let remoteReader: CodexSubscriptionUsageReader?
+    private let codexReader: CodexSubscriptionUsageReader
+    private let claudeReader: ClaudeSubscriptionUsageReader
 
     public convenience init(
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -47,48 +48,59 @@ public final class CodexUsageService: @unchecked Sendable {
             rawValue: environment["NOTCHMETER_CODEX_SOURCE"]?.lowercased() ?? ""
         ) ?? .auto
 
-        let remoteReader = CodexSubscriptionUsageReader(environment: environment)
-        self.init(mode: mode, localReader: localReader, remoteReader: remoteReader)
+        self.init(
+            mode: mode,
+            localReader: localReader,
+            codexReader: CodexSubscriptionUsageReader(environment: environment),
+            claudeReader: ClaudeSubscriptionUsageReader(environment: environment)
+        )
     }
 
     public init(
         mode: CodexUsageSourceMode,
         localReader: CodexUsageReader,
-        remoteReader: CodexSubscriptionUsageReader?
+        codexReader: CodexSubscriptionUsageReader,
+        claudeReader: ClaudeSubscriptionUsageReader
     ) {
         self.mode = mode
         self.localReader = localReader
-        self.remoteReader = remoteReader
+        self.codexReader = codexReader
+        self.claudeReader = claudeReader
     }
 
-    public func todaySnapshot(now: Date = Date()) async throws -> CodexUsageSnapshot {
+    public func todaySnapshot(
+        provider: AgentUsageProvider = .codex,
+        now: Date = Date()
+    ) async throws -> CodexUsageSnapshot {
         switch mode {
         case .local:
             return try localReader.todaySnapshot(now: now)
         case .remote:
-            return try await remoteSnapshot(now: now)
+            return try await remoteSnapshot(provider: provider, now: now)
         case .auto:
             do {
-                return try await remoteSnapshot(now: now)
+                return try await remoteSnapshot(provider: provider, now: now)
             } catch {
                 return try localReader.todaySnapshot(now: now)
             }
         }
     }
 
-    private func remoteSnapshot(now: Date) async throws -> CodexUsageSnapshot {
-        guard let remoteReader else {
-            throw CodexRemoteUsageError.missingCredentials
+    private func remoteSnapshot(provider: AgentUsageProvider, now: Date) async throws -> CodexUsageSnapshot {
+        var snapshot: CodexUsageSnapshot
+        switch provider {
+        case .codex:
+            snapshot = try await codexReader.todaySnapshot(now: now)
+        case .claude:
+            snapshot = try await claudeReader.todaySnapshot(now: now)
         }
 
-        var snapshot = try await remoteReader.todaySnapshot(now: now)
-        let localSnapshot = try? localReader.todaySnapshot(now: now)
-
-        if snapshot.totalUsage == .zero {
+        if provider == .codex, snapshot.totalUsage == .zero {
+            let localSnapshot = try? localReader.todaySnapshot(now: now)
             snapshot.totalUsage = localSnapshot?.totalUsage ?? .zero
+            snapshot.lastUsage = snapshot.lastUsage ?? localSnapshot?.lastUsage
+            snapshot.newestEventDate = snapshot.newestEventDate ?? localSnapshot?.newestEventDate
         }
-        snapshot.lastUsage = snapshot.lastUsage ?? localSnapshot?.lastUsage
-        snapshot.newestEventDate = snapshot.newestEventDate ?? localSnapshot?.newestEventDate
 
         return snapshot
     }
