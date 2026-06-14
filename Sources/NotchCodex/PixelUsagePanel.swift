@@ -83,12 +83,12 @@ struct NotchOverlayView: View {
         .contentShape(TopAnchoredNotchMask(height: visibleHeight))
         .background(Color.clear)
         .onHover { inside in
-            withAnimation(.easeInOut(duration: inside ? 0.24 : 0.18)) {
-                hover = inside
-                expanded = inside
-                if inside {
-                    viewModel.bump()
-                }
+            guard !inside else {
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                hover = false
+                expanded = false
             }
         }
         .onAppear {
@@ -143,6 +143,17 @@ struct NotchOverlayView: View {
             }
         }
         .frame(width: metrics.totalWidth, height: metrics.menuBarHeight)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            guard inside else {
+                return
+            }
+            withAnimation(.easeInOut(duration: 0.24)) {
+                hover = true
+                expanded = true
+                viewModel.bump()
+            }
+        }
     }
 
     private var expandedDeck: some View {
