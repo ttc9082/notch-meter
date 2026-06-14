@@ -57,7 +57,7 @@ Supported values:
 - `remote`: require remote Codex subscription usage.
 - `local`: only read local Codex session files.
 
-Remote subscription usage reads `~/.codex/auth.json` by default, using the same ChatGPT OAuth cache created by Codex sign-in. It calls the ChatGPT Codex usage endpoint and refreshes the OAuth token when needed.
+Remote subscription usage signs in with a Codex-compatible ChatGPT OAuth flow. Right-click the notch HUD and choose **Sign in with OpenAI**. NotchMeter opens the browser, listens for the local OAuth callback, stores the resulting tokens in macOS Keychain, and refreshes tokens when needed.
 
 To force remote mode:
 
@@ -66,7 +66,7 @@ export NOTCHMETER_CODEX_SOURCE=remote
 swift run notch-meter
 ```
 
-For advanced setups, you can pass credentials through the environment instead of the Codex auth cache:
+For advanced setups, you can pass credentials through the environment instead of Keychain:
 
 ```sh
 export NOTCHMETER_CODEX_ACCESS_TOKEN="..."
@@ -74,7 +74,7 @@ export NOTCHMETER_CODEX_REFRESH_TOKEN="..."
 swift run notch-meter
 ```
 
-The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data.
+The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data. If NotchMeter has no Keychain credentials, it can still fall back to the existing Codex `~/.codex/auth.json` cache.
 
 ## Install From Source
 
@@ -113,7 +113,7 @@ In local mode, NotchMeter only reads local usage files and only extracts numeric
 - `payload.info.last_token_usage`
 - `payload.rate_limits`
 
-In remote Codex mode, NotchMeter reads Codex OAuth credentials from `~/.codex/auth.json` or environment variables and sends an authenticated usage request to OpenAI's ChatGPT Codex backend. It does not read, store, upload, or display prompt/response text.
+In remote Codex mode, NotchMeter stores its own OAuth credentials in macOS Keychain, or reads credentials from environment variables / `~/.codex/auth.json` as fallback, then sends an authenticated usage request to OpenAI's ChatGPT Codex backend. It does not read, store, upload, or display prompt/response text.
 
 ## Roadmap
 

@@ -101,8 +101,9 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
     public let tokenURL: URL
     public let authFileURL: URL
     private let environmentCredentials: CodexOAuthCredentials?
+    private let keychainStore: CodexOAuthKeychainStore
 
-    public convenience init?(environment: [String: String] = ProcessInfo.processInfo.environment) {
+    public convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let home = FileManager.default.homeDirectoryForCurrentUser
         let authFileURL = environment["CODEX_HOME"]
             .map { URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("auth.json") }
@@ -122,15 +123,12 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             CodexOAuthCredentials(accessToken: $0, refreshToken: refreshToken)
         }
 
-        if environmentCredentials == nil && !FileManager.default.fileExists(atPath: authFileURL.path) {
-            return nil
-        }
-
         self.init(
             usageURL: usageURL,
             tokenURL: tokenURL,
             authFileURL: authFileURL,
-            environmentCredentials: environmentCredentials
+            environmentCredentials: environmentCredentials,
+            keychainStore: .shared
         )
     }
 
@@ -139,12 +137,14 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
         tokenURL: URL = URL(string: "https://auth.openai.com/oauth/token")!,
         authFileURL: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/auth.json"),
-        environmentCredentials: CodexOAuthCredentials? = nil
+        environmentCredentials: CodexOAuthCredentials? = nil,
+        keychainStore: CodexOAuthKeychainStore = .shared
     ) {
         self.usageURL = usageURL
         self.tokenURL = tokenURL
         self.authFileURL = authFileURL
         self.environmentCredentials = environmentCredentials
+        self.keychainStore = keychainStore
     }
 
     public func todaySnapshot(now: Date = Date()) async throws -> CodexUsageSnapshot {
@@ -193,6 +193,10 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             return environmentCredentials
         }
 
+        if let keychainCredentials = try keychainStore.load() {
+            return keychainCredentials
+        }
+
         let data = try Data(contentsOf: authFileURL)
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tokens = object["tokens"] as? [String: Any],
@@ -239,10 +243,14 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
 
         let refreshed = CodexOAuthCredentials(
             accessToken: accessToken,
-            refreshToken: (object["refresh_token"] as? String) ?? refreshToken
+            refreshToken: (object["refresh_token"] as? String) ?? refreshToken,
+            idToken: object["id_token"] as? String,
+            expiresAt: Self.expiresAt(from: object["expires_in"]),
+            lastRefreshAt: Date()
         )
 
         if environmentCredentials == nil {
+            try? keychainStore.save(refreshed)
             try? persistRefreshedTokens(object, fallbackRefreshToken: refreshToken)
         }
 
@@ -281,15 +289,40 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             "invalid_grant"
         ].contains { text.contains($0) }
     }
+
+    private static func expiresAt(from value: Any?) -> Date? {
+        if let seconds = value as? Int {
+            return Date().addingTimeInterval(TimeInterval(seconds))
+        }
+        if let seconds = value as? Double {
+            return Date().addingTimeInterval(seconds)
+        }
+        if let string = value as? String, let seconds = Double(string) {
+            return Date().addingTimeInterval(seconds)
+        }
+        return nil
+    }
 }
 
-public struct CodexOAuthCredentials: Equatable, Sendable {
+public struct CodexOAuthCredentials: Codable, Equatable, Sendable {
     public var accessToken: String
     public var refreshToken: String?
+    public var idToken: String?
+    public var expiresAt: Date?
+    public var lastRefreshAt: Date?
 
-    public init(accessToken: String, refreshToken: String? = nil) {
+    public init(
+        accessToken: String,
+        refreshToken: String? = nil,
+        idToken: String? = nil,
+        expiresAt: Date? = nil,
+        lastRefreshAt: Date? = nil
+    ) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
+        self.idToken = idToken
+        self.expiresAt = expiresAt
+        self.lastRefreshAt = lastRefreshAt
     }
 }
 
@@ -339,7 +372,7 @@ private enum CodexSubscriptionUsageParser {
     private static func window(from object: [String: Any], fallbackMinutes: Int) -> RateLimitWindow {
         let explicitMinutes = intValue(object["window_minutes"])
         let seconds = intValue(object["limit_window_seconds"] ?? object["window_seconds"])
-        RateLimitWindow(
+        return RateLimitWindow(
             usedPercent: clampedPercent(object["used_percent"] ?? object["percent_used"]),
             windowMinutes: explicitMinutes > 0 ? explicitMinutes : (seconds > 0 ? seconds / 60 : fallbackMinutes),
             resetsAt: dateValue(object["reset_at"] ?? object["resets_at"] ?? object["resetAt"])

@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let viewModel = UsageViewModel()
+    private let signInController = CodexOAuthSignInController()
     private let overlay = NotchOverlayController()
     private var timer: Timer?
 
@@ -31,12 +32,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 viewModel: viewModel,
                 metrics: overlay.metrics,
                 onRefresh: { [weak self] in self?.refresh() },
+                onSignIn: { [weak self] in self?.signIn() },
+                onSignOut: { [weak self] in self?.signOut() },
                 onQuit: { NSApp.terminate(nil) },
                 onExpansionChange: { [weak self] expanded in
                     self?.overlay.setExpanded(expanded)
                 }
             )
         )
+    }
+
+    private func signIn() {
+        viewModel.signIn { [signInController] in
+            try await signInController.signIn()
+        }
+    }
+
+    private func signOut() {
+        signInController.signOut()
+        refresh()
     }
 
 }

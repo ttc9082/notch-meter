@@ -436,9 +436,11 @@ final class UsageViewModel: ObservableObject {
     @Published var snapshot: CodexUsageSnapshot = .empty
     @Published var errorMessage: String?
     @Published var refreshPulse = false
+    @Published var authMessage: String?
 
     private let usageService = CodexUsageService()
     private var refreshTask: Task<Void, Never>?
+    private var signInTask: Task<Void, Never>?
 
     func refresh() {
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -471,12 +473,34 @@ final class UsageViewModel: ObservableObject {
             refreshPulse.toggle()
         }
     }
+
+    func signIn(_ action: @escaping () async throws -> CodexOAuthCredentials) {
+        authMessage = "Opening OpenAI sign-in..."
+        signInTask?.cancel()
+        signInTask = Task {
+            do {
+                _ = try await action()
+                guard !Task.isCancelled else {
+                    return
+                }
+                authMessage = "OpenAI sign-in complete"
+                refresh()
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+                authMessage = error.localizedDescription
+            }
+        }
+    }
 }
 
 struct NotchOverlayView: View {
     @ObservedObject var viewModel: UsageViewModel
     let metrics: NotchOverlayMetrics
     let onRefresh: () -> Void
+    let onSignIn: () -> Void
+    let onSignOut: () -> Void
     let onQuit: () -> Void
     let onExpansionChange: (Bool) -> Void
 
@@ -547,6 +571,9 @@ struct NotchOverlayView: View {
             onExpansionChange(newValue)
         }
         .contextMenu {
+            Button("Sign in with OpenAI", action: onSignIn)
+            Button("Clear NotchMeter OpenAI Sign-In", action: onSignOut)
+            Divider()
             Button("Quit NotchMeter", action: onQuit)
         }
     }
