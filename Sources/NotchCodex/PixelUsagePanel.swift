@@ -1,6 +1,142 @@
 import CodexUsageCore
 import SwiftUI
 
+private enum NotchTheme: CaseIterable {
+    case pixel
+    case orbit
+    case cobalt
+    case longTable
+
+    var next: NotchTheme {
+        let themes = Self.allCases
+        guard let index = themes.firstIndex(of: self) else {
+            return .pixel
+        }
+        return themes[(index + 1) % themes.count]
+    }
+
+    var buttonTitle: String {
+        switch self {
+        case .pixel:
+            return "PIX"
+        case .orbit:
+            return "ORB"
+        case .cobalt:
+            return "COB"
+        case .longTable:
+            return "TBL"
+        }
+    }
+
+    var panel: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.panel
+        case .orbit:
+            return Color(red: 0.045, green: 0.055, blue: 0.12)
+        case .cobalt:
+            return Color(red: 0.035, green: 0.075, blue: 0.16)
+        case .longTable:
+            return Color(red: 0.18, green: 0.105, blue: 0.075)
+        }
+    }
+
+    var edge: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.edge
+        case .orbit:
+            return Color(red: 0.25, green: 0.1, blue: 0.55)
+        case .cobalt:
+            return Color(red: 0.18, green: 0.42, blue: 0.82)
+        case .longTable:
+            return Color(red: 0.58, green: 0.18, blue: 0.1)
+        }
+    }
+
+    var ink: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.ink
+        case .orbit:
+            return Color(red: 0.92, green: 0.94, blue: 1)
+        case .cobalt:
+            return Color(red: 0.88, green: 0.95, blue: 1)
+        case .longTable:
+            return Color(red: 1, green: 0.91, blue: 0.72)
+        }
+    }
+
+    var muted: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.muted
+        case .orbit:
+            return Color(red: 0.62, green: 0.62, blue: 0.86)
+        case .cobalt:
+            return Color(red: 0.58, green: 0.72, blue: 0.9)
+        case .longTable:
+            return Color(red: 0.72, green: 0.54, blue: 0.44)
+        }
+    }
+
+    var track: Color {
+        panel.opacity(0.72)
+    }
+
+    var accentA: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.lime
+        case .orbit:
+            return Color(red: 0.35, green: 1, blue: 0.38)
+        case .cobalt:
+            return Color(red: 0.35, green: 0.76, blue: 1)
+        case .longTable:
+            return Color(red: 0.95, green: 0.74, blue: 0.38)
+        }
+    }
+
+    var accentB: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.cyan
+        case .orbit:
+            return Color(red: 0.26, green: 0.9, blue: 1)
+        case .cobalt:
+            return Color(red: 0.72, green: 0.9, blue: 1)
+        case .longTable:
+            return Color(red: 0.94, green: 0.38, blue: 0.22)
+        }
+    }
+
+    var accentC: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.gold
+        case .orbit:
+            return Color(red: 1, green: 0.78, blue: 0.22)
+        case .cobalt:
+            return Color(red: 0.48, green: 0.58, blue: 1)
+        case .longTable:
+            return Color(red: 1, green: 0.84, blue: 0.58)
+        }
+    }
+
+    var accentD: Color {
+        switch self {
+        case .pixel:
+            return PixelPalette.pink
+        case .orbit:
+            return Color(red: 1, green: 0.25, blue: 0.76)
+        case .cobalt:
+            return Color(red: 0.92, green: 0.44, blue: 0.82)
+        case .longTable:
+            return Color(red: 0.78, green: 0.24, blue: 0.14)
+        }
+    }
+}
+
 @MainActor
 final class UsageViewModel: ObservableObject {
     @Published var snapshot: CodexUsageSnapshot = .empty
@@ -40,6 +176,7 @@ struct NotchOverlayView: View {
     @State private var expanded = false
     @State private var hover = false
     @State private var scanlineOffset: CGFloat = -42
+    @State private var theme: NotchTheme = .pixel
 
     private var expansionAnimation: Animation {
         .easeInOut(duration: expanded ? 0.24 : 0.18)
@@ -110,13 +247,23 @@ struct NotchOverlayView: View {
 
             HStack(spacing: 0) {
                 Button {
-                    toggleExpanded()
+                    if expanded {
+                        onRefresh()
+                    } else {
+                        toggleExpanded()
+                    }
                 } label: {
-                    CompactRemainingLabel(
-                        label: "5H",
-                        value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
-                        tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary)
-                    )
+                    Group {
+                        if expanded {
+                            NotchActionLabel(title: "SYNC", tint: theme.accentB)
+                        } else {
+                            CompactRemainingLabel(
+                                label: "5H",
+                                value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
+                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary)
+                            )
+                        }
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .contentShape(Rectangle())
                 }
@@ -128,13 +275,23 @@ struct NotchOverlayView: View {
                     .allowsHitTesting(false)
 
                 Button {
-                    toggleExpanded()
+                    if expanded {
+                        cycleTheme()
+                    } else {
+                        toggleExpanded()
+                    }
                 } label: {
-                    CompactRemainingLabel(
-                        label: "WK",
-                        value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
-                        tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary)
-                    )
+                    Group {
+                        if expanded {
+                            NotchActionLabel(title: theme.buttonTitle, tint: theme.accentD)
+                        } else {
+                            CompactRemainingLabel(
+                                label: "WK",
+                                value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
+                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary)
+                            )
+                        }
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .contentShape(Rectangle())
                 }
@@ -157,33 +314,25 @@ struct NotchOverlayView: View {
     }
 
     private var expandedDeck: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             PixelPalette.notch
 
             VStack(alignment: .leading, spacing: 12) {
                 DualLimitProgress(
                     primary: viewModel.snapshot.rateLimits?.primary,
                     secondary: viewModel.snapshot.rateLimits?.secondary,
-                    pulse: viewModel.refreshPulse
+                    primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
+                    secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
+                    pulse: viewModel.refreshPulse,
+                    theme: theme
                 )
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 2), spacing: 10) {
-                    PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: PixelPalette.lime)
-                    PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: PixelPalette.cyan)
-                    PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: PixelPalette.gold)
-                    PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: PixelPalette.pink)
+                    PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: theme.accentA, theme: theme)
+                    PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: theme.accentB, theme: theme)
+                    PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: theme.accentC, theme: theme)
+                    PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: theme.accentD, theme: theme)
                 }
-
-                QuotaDetailStrip(
-                    primary: viewModel.snapshot.rateLimits?.primary,
-                    secondary: viewModel.snapshot.rateLimits?.secondary,
-                    primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
-                    secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt)
-                )
-
-                WeakStatusBar(
-                    plan: viewModel.snapshot.rateLimits?.planType?.uppercased() ?? "LOCAL"
-                )
             }
             .padding(.horizontal, 18)
             .padding(.top, 22)
@@ -196,6 +345,12 @@ struct NotchOverlayView: View {
         withAnimation(.easeInOut(duration: expanded ? 0.18 : 0.24)) {
             expanded.toggle()
             viewModel.bump()
+        }
+    }
+
+    private func cycleTheme() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            theme = theme.next
         }
     }
 
@@ -283,6 +438,20 @@ private struct CompactRemainingLabel: View {
     }
 }
 
+private struct NotchActionLabel: View {
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 10, weight: .black, design: .monospaced))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .padding(.horizontal, 6)
+    }
+}
+
 private struct MiniUsagePip: View {
     let value: Double
 
@@ -307,43 +476,50 @@ private struct MiniUsagePip: View {
 private struct DualLimitProgress: View {
     let primary: RateLimitWindow?
     let secondary: RateLimitWindow?
+    let primaryReset: String
+    let secondaryReset: String
     let pulse: Bool
+    let theme: NotchTheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            limitRow(title: "5H", window: primary, accent: color(for: primary))
-            limitRow(title: "WK", window: secondary, accent: color(for: secondary))
+            limitRow(title: "5H", window: primary, reset: primaryReset, accent: color(for: primary))
+            limitRow(title: "WK", window: secondary, reset: secondaryReset, accent: color(for: secondary))
         }
         .frame(maxWidth: .infinity)
         .scaleEffect(y: pulse ? 1.035 : 1)
     }
 
-    private func limitRow(title: String, window: RateLimitWindow?, accent: Color) -> some View {
+    private func limitRow(title: String, window: RateLimitWindow?, reset: String, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(title)
-                    .foregroundStyle(PixelPalette.muted)
+                    .foregroundStyle(theme.muted)
                 Text("\(remainingPercent(for: window)) LEFT")
                     .foregroundStyle(accent)
                 Spacer()
                 Text("\(usedPercent(for: window)) USED")
-                    .foregroundStyle(PixelPalette.ink)
+                    .foregroundStyle(theme.ink)
+                Text("RESET \(reset)")
+                    .foregroundStyle(theme.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .font(.system(size: 11, weight: .black, design: .monospaced))
 
             GeometryReader { proxy in
-                let used = min(max(window?.usedPercent ?? 0, 0), 100)
-                let width = proxy.size.width * used / 100
+                let remaining = max(0, min(100, 100 - (window?.usedPercent ?? 100)))
+                let width = proxy.size.width * remaining / 100
 
                 ZStack(alignment: .leading) {
                     Rectangle()
-                        .fill(PixelPalette.panel)
+                        .fill(theme.track)
                     Rectangle()
                         .fill(accent)
                         .frame(width: width)
                     PixelTicks()
                 }
-                .overlay(Rectangle().stroke(PixelPalette.edge, lineWidth: 2))
+                .overlay(Rectangle().stroke(theme.edge, lineWidth: 2))
             }
             .frame(height: 20)
         }
@@ -366,16 +542,16 @@ private struct DualLimitProgress: View {
 
     private func color(for window: RateLimitWindow?) -> Color {
         guard let window else {
-            return PixelPalette.muted
+            return theme.muted
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
         if remaining <= 15 {
-            return PixelPalette.pink
+            return theme.accentD
         }
         if remaining <= 40 {
-            return PixelPalette.gold
+            return theme.accentC
         }
-        return PixelPalette.lime
+        return theme.accentA
     }
 }
 
@@ -842,6 +1018,7 @@ private struct PixelMetricCard: View {
     let label: String
     let value: String
     let tint: Color
+    var theme: NotchTheme = .pixel
 
     @State private var hover = false
 
@@ -849,7 +1026,7 @@ private struct PixelMetricCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .font(.system(size: 10, weight: .black, design: .monospaced))
-                .foregroundStyle(PixelPalette.muted)
+                .foregroundStyle(theme.muted)
             Text(value)
                 .font(.system(size: 24, weight: .black, design: .monospaced))
                 .foregroundStyle(tint)
@@ -857,8 +1034,8 @@ private struct PixelMetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(10)
-        .background(PixelPalette.panel)
-        .overlay(Rectangle().stroke(hover ? tint : PixelPalette.edge, lineWidth: 2))
+        .background(theme.panel)
+        .overlay(Rectangle().stroke(hover ? tint : theme.edge, lineWidth: 2))
         .offset(y: hover ? -2 : 0)
         .onHover { inside in
             withAnimation(.snappy(duration: 0.16)) {
