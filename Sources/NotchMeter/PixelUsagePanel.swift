@@ -3,7 +3,9 @@ import SwiftUI
 
 private enum NotchTheme: CaseIterable {
     case pixel
-    case orbit
+    case bauhaus
+    case swiss
+    case artDeco
     case cobalt
     case longTable
 
@@ -19,8 +21,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return "PIX"
-        case .orbit:
-            return "ORB"
+        case .bauhaus:
+            return "BAU"
+        case .swiss:
+            return "SWI"
+        case .artDeco:
+            return "DEC"
         case .cobalt:
             return "COB"
         case .longTable:
@@ -32,8 +38,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.panel
-        case .orbit:
-            return Color(red: 0.045, green: 0.055, blue: 0.12)
+        case .bauhaus:
+            return Color(red: 0.92, green: 0.86, blue: 0.68)
+        case .swiss:
+            return Color(red: 0.93, green: 0.95, blue: 0.96)
+        case .artDeco:
+            return Color(red: 0.055, green: 0.045, blue: 0.03)
         case .cobalt:
             return Color(red: 0.035, green: 0.075, blue: 0.16)
         case .longTable:
@@ -45,8 +55,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.edge
-        case .orbit:
-            return Color(red: 0.25, green: 0.1, blue: 0.55)
+        case .bauhaus:
+            return Color(red: 0.02, green: 0.025, blue: 0.03)
+        case .swiss:
+            return Color(red: 0.05, green: 0.12, blue: 0.22)
+        case .artDeco:
+            return Color(red: 0.86, green: 0.65, blue: 0.28)
         case .cobalt:
             return Color(red: 0.18, green: 0.42, blue: 0.82)
         case .longTable:
@@ -58,8 +72,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.ink
-        case .orbit:
-            return Color(red: 0.92, green: 0.94, blue: 1)
+        case .bauhaus:
+            return Color(red: 0.03, green: 0.035, blue: 0.04)
+        case .swiss:
+            return Color(red: 0.03, green: 0.06, blue: 0.1)
+        case .artDeco:
+            return Color(red: 1, green: 0.91, blue: 0.58)
         case .cobalt:
             return Color(red: 0.88, green: 0.95, blue: 1)
         case .longTable:
@@ -71,8 +89,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.muted
-        case .orbit:
-            return Color(red: 0.62, green: 0.62, blue: 0.86)
+        case .bauhaus:
+            return Color(red: 0.18, green: 0.18, blue: 0.16)
+        case .swiss:
+            return Color(red: 0.35, green: 0.42, blue: 0.48)
+        case .artDeco:
+            return Color(red: 0.7, green: 0.58, blue: 0.38)
         case .cobalt:
             return Color(red: 0.58, green: 0.72, blue: 0.9)
         case .longTable:
@@ -84,12 +106,53 @@ private enum NotchTheme: CaseIterable {
         panel.opacity(0.72)
     }
 
+    var hudInk: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 0.96, green: 0.78, blue: 0.05)
+        case .swiss:
+            return Color(red: 0.86, green: 0.93, blue: 1)
+        case .artDeco:
+            return Color(red: 1, green: 0.91, blue: 0.58)
+        default:
+            return ink
+        }
+    }
+
+    var hudMuted: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 0.92, green: 0.86, blue: 0.68)
+        case .swiss:
+            return Color(red: 0.58, green: 0.72, blue: 0.9)
+        case .artDeco:
+            return Color(red: 0.7, green: 0.58, blue: 0.38)
+        default:
+            return muted
+        }
+    }
+
+    var actionAccent: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 0.96, green: 0.78, blue: 0.05)
+        case .swiss:
+            return Color(red: 0.9, green: 0.05, blue: 0.08)
+        default:
+            return accentD
+        }
+    }
+
     var accentA: Color {
         switch self {
         case .pixel:
             return PixelPalette.lime
-        case .orbit:
-            return Color(red: 0.35, green: 1, blue: 0.38)
+        case .bauhaus:
+            return Color(red: 0.9, green: 0.12, blue: 0.1)
+        case .swiss:
+            return Color(red: 0.02, green: 0.26, blue: 0.72)
+        case .artDeco:
+            return Color(red: 0.94, green: 0.72, blue: 0.28)
         case .cobalt:
             return Color(red: 0.35, green: 0.76, blue: 1)
         case .longTable:
@@ -101,8 +164,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.cyan
-        case .orbit:
-            return Color(red: 0.26, green: 0.9, blue: 1)
+        case .bauhaus:
+            return Color(red: 0.0, green: 0.22, blue: 0.68)
+        case .swiss:
+            return Color(red: 0.9, green: 0.05, blue: 0.08)
+        case .artDeco:
+            return Color(red: 0.22, green: 0.74, blue: 0.72)
         case .cobalt:
             return Color(red: 0.72, green: 0.9, blue: 1)
         case .longTable:
@@ -114,8 +181,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.gold
-        case .orbit:
-            return Color(red: 1, green: 0.78, blue: 0.22)
+        case .bauhaus:
+            return Color(red: 0.96, green: 0.78, blue: 0.05)
+        case .swiss:
+            return Color(red: 0.03, green: 0.08, blue: 0.13)
+        case .artDeco:
+            return Color(red: 0.95, green: 0.86, blue: 0.56)
         case .cobalt:
             return Color(red: 0.48, green: 0.58, blue: 1)
         case .longTable:
@@ -127,8 +198,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return PixelPalette.pink
-        case .orbit:
-            return Color(red: 1, green: 0.25, blue: 0.76)
+        case .bauhaus:
+            return Color(red: 0.02, green: 0.02, blue: 0.02)
+        case .swiss:
+            return Color(red: 0.95, green: 0.2, blue: 0.14)
+        case .artDeco:
+            return Color(red: 0.62, green: 0.44, blue: 0.16)
         case .cobalt:
             return Color(red: 0.92, green: 0.44, blue: 0.82)
         case .longTable:
@@ -138,31 +213,33 @@ private enum NotchTheme: CaseIterable {
 
     var fontDesign: Font.Design {
         switch self {
-        case .pixel, .orbit, .cobalt:
+        case .pixel, .cobalt:
             return .monospaced
-        case .longTable:
+        case .bauhaus, .swiss:
+            return .default
+        case .artDeco, .longTable:
             return .serif
         }
     }
 
     var labelWeight: Font.Weight {
         switch self {
-        case .pixel, .orbit:
+        case .pixel, .bauhaus:
             return .black
-        case .cobalt:
+        case .swiss, .cobalt:
             return .semibold
-        case .longTable:
+        case .artDeco, .longTable:
             return .bold
         }
     }
 
     var valueWeight: Font.Weight {
         switch self {
-        case .pixel, .orbit:
+        case .pixel, .bauhaus:
             return .black
-        case .cobalt:
+        case .swiss, .cobalt:
             return .heavy
-        case .longTable:
+        case .artDeco, .longTable:
             return .bold
         }
     }
@@ -171,8 +248,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return 12
-        case .orbit:
-            return 14
+        case .bauhaus:
+            return 10
+        case .swiss:
+            return 8
+        case .artDeco:
+            return 15
         case .cobalt:
             return 10
         case .longTable:
@@ -182,8 +263,12 @@ private enum NotchTheme: CaseIterable {
 
     var topPadding: CGFloat {
         switch self {
-        case .orbit:
-            return 15
+        case .bauhaus:
+            return 14
+        case .swiss:
+            return 12
+        case .artDeco:
+            return 18
         case .cobalt:
             return 14
         default:
@@ -195,7 +280,11 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .cobalt:
             return 16
-        case .orbit:
+        case .bauhaus:
+            return 14
+        case .swiss:
+            return 16
+        case .artDeco:
             return 20
         default:
             return 18
@@ -208,9 +297,13 @@ private enum NotchTheme: CaseIterable {
 
     var gridSpacing: CGFloat {
         switch self {
+        case .swiss:
+            return 8
+        case .artDeco:
+            return 14
         case .cobalt:
             return 8
-        case .orbit:
+        case .bauhaus:
             return 12
         default:
             return 10
@@ -221,8 +314,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return 68
-        case .orbit:
-            return 76
+        case .bauhaus:
+            return 62
+        case .swiss:
+            return 58
+        case .artDeco:
+            return 78
         case .cobalt:
             return 64
         case .longTable:
@@ -232,10 +329,10 @@ private enum NotchTheme: CaseIterable {
 
     var cardCorner: CGFloat {
         switch self {
-        case .pixel, .cobalt:
+        case .pixel, .bauhaus, .swiss, .cobalt:
             return 0
-        case .orbit:
-            return 6
+        case .artDeco:
+            return 8
         case .longTable:
             return 3
         }
@@ -245,10 +342,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return 2
-        case .orbit:
-            return 2.5
-        case .cobalt:
+        case .bauhaus:
+            return 3
+        case .swiss, .cobalt:
             return 1
+        case .artDeco:
+            return 2.2
         case .longTable:
             return 1.5
         }
@@ -258,7 +357,11 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return 20
-        case .orbit:
+        case .bauhaus:
+            return 24
+        case .swiss:
+            return 10
+        case .artDeco:
             return 18
         case .cobalt:
             return 14
@@ -271,8 +374,10 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return 0
-        case .orbit:
-            return 5
+        case .bauhaus, .swiss:
+            return 0
+        case .artDeco:
+            return 9
         case .cobalt:
             return 2
         case .longTable:
@@ -282,8 +387,14 @@ private enum NotchTheme: CaseIterable {
 
     var valueFontSize: CGFloat {
         switch self {
-        case .pixel, .orbit:
+        case .pixel:
             return 28
+        case .bauhaus:
+            return 30
+        case .swiss:
+            return 25
+        case .artDeco:
+            return 29
         case .cobalt:
             return 26
         case .longTable:
@@ -293,7 +404,9 @@ private enum NotchTheme: CaseIterable {
 
     var labelFontSize: CGFloat {
         switch self {
-        case .longTable:
+        case .swiss:
+            return 9
+        case .artDeco, .longTable:
             return 11
         default:
             return 10
@@ -304,8 +417,12 @@ private enum NotchTheme: CaseIterable {
         switch self {
         case .pixel:
             return 276
-        case .orbit:
-            return 292
+        case .bauhaus:
+            return 260
+        case .swiss:
+            return 228
+        case .artDeco:
+            return 304
         case .cobalt:
             return 244
         case .longTable:
@@ -464,7 +581,7 @@ struct NotchOverlayView: View {
                 } label: {
                     Group {
                         if expanded {
-                            NotchActionLabel(title: theme.buttonTitle, tint: theme.accentD)
+                            NotchActionLabel(title: theme.buttonTitle, tint: theme.actionAccent)
                         } else {
                             CompactRemainingLabel(
                                 label: "WK",
@@ -688,14 +805,14 @@ private struct DualLimitProgress: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(title)
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(theme.hudMuted)
                 Text("\(remainingPercent(for: window)) LEFT")
                     .foregroundStyle(accent)
                 Spacer()
                 Text("\(usedPercent(for: window)) USED")
-                    .foregroundStyle(theme.ink)
+                    .foregroundStyle(theme.hudInk)
                 Text("RESET \(reset)")
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(theme.hudMuted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -711,9 +828,10 @@ private struct DualLimitProgress: View {
                     progressShape
                         .fill(accent)
                         .frame(width: width)
-                    if theme == .pixel || theme == .orbit {
+                    if theme == .pixel {
                         PixelTicks()
-                            .opacity(theme == .pixel ? 1 : 0.45)
+                    } else if theme == .bauhaus {
+                        BauhausDividers()
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: theme.progressCorner, style: .continuous))
@@ -1216,6 +1334,24 @@ private struct PixelTicks: View {
             }
         }
         .padding(.horizontal, 6)
+    }
+}
+
+private struct BauhausDividers: View {
+    var body: some View {
+        HStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.black.opacity(0.34))
+                .frame(width: 5)
+            Spacer()
+            Rectangle()
+                .fill(Color.black.opacity(0.34))
+                .frame(width: 5)
+            Spacer()
+            Rectangle()
+                .fill(Color.black.opacity(0.34))
+                .frame(width: 5)
+        }
     }
 }
 

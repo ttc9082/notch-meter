@@ -13,7 +13,7 @@ Initial open-source prototype for NotchMeter, a MacBook notch HUD for coding-age
 - Compact notch mode shows 5-hour and weekly remaining quota
 - Expanded mode shows large remaining-quota progress bars and token cards
 - Displays `TOTAL`, `OUT`, `THINK`, and `CACHED` token usage
-- Includes four visual themes: `PIX`, `ORB`, `COB`, and `TBL`
+- Includes six visual themes: `PIX`, `BAU`, `SWI`, `DEC`, `COB`, and `TBL`
 - Theme changes affect compact and expanded states, including typography, spacing, card shapes, and progress bars
 - Right-click menu exits the app
 - Includes a fixture check target for CI-friendly parser verification
