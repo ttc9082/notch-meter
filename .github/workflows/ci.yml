@@ -49,5 +49,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.dmg
-          generate_release_notes: true
+          body_path: RELEASE.md
+          files: |
+            dist/*.dmg
+            docs/assets/notchmeter-v0.1.0-themes.png
