@@ -2,7 +2,7 @@
 
 NotchMeter is a tiny open-source macOS notch HUD for keeping coding-agent and model usage visible without leaving the workspace.
 
-The first provider reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows rate-limit windows plus today's token totals. The project is intentionally provider-ready so future versions can add other coding agents and models, such as Claude Code.
+The first provider reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows rate-limit windows plus today's token totals. NotchMeter can also try the official Codex Enterprise Analytics API when configured, then fall back to local data. The project is intentionally provider-ready so future versions can add other coding agents and models, such as Claude Code.
 
 Repository: `https://github.com/ttc9082/notch-meter`
 
@@ -14,6 +14,7 @@ This is an early prototype:
 - notch-integrated floating pixel HUD: working
 - small microinteractions for refresh, hover, status, and usage bars: working
 - local Codex token/rate-limit provider: working
+- remote Codex Analytics provider: experimental
 - additional coding-agent/model providers: planned
 - NotchNook or other notch-widget host: planned
 - packaged `.app` / `.dmg` release workflow: working
@@ -41,6 +42,31 @@ swift run notch-meter
 The app appears as a small top-center HUD that visually attaches to the MacBook notch area.
 
 Hover the compact notch HUD to expand the dashboard. The panel shows animated quota bars, token cards, themeable visual styles, and quick `SYNC` controls. Right-click the HUD to quit.
+
+## Data Sources
+
+By default, NotchMeter runs in `auto` mode:
+
+```sh
+NOTCHMETER_CODEX_SOURCE=auto swift run notch-meter
+```
+
+Supported values:
+
+- `auto`: try the remote Codex Analytics API when configured, otherwise read local Codex session files.
+- `remote`: require the remote Codex Analytics API.
+- `local`: only read local Codex session files.
+
+Remote Codex analytics requires a ChatGPT Enterprise/Business workspace with Codex Analytics API access. Configure it with:
+
+```sh
+export NOTCHMETER_CODEX_SOURCE=remote
+export NOTCHMETER_CODEX_WORKSPACE_ID="..."
+export NOTCHMETER_CODEX_ANALYTICS_API_KEY="..."
+swift run notch-meter
+```
+
+Codex access tokens and ChatGPT sign-in authorize Codex local workflows, but OpenAI's public docs do not currently describe a personal real-time quota endpoint for the 5-hour and weekly rate-limit windows. Until that exists, NotchMeter uses remote analytics for token totals and keeps using the newest local Codex rate-limit event to fill live quota windows.
 
 ## Install From Source
 

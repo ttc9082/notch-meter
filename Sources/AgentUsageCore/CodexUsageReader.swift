@@ -60,6 +60,15 @@ public enum CodexUsageReaderError: Error, Equatable {
     case sessionsDirectoryMissing(URL)
 }
 
+extension CodexUsageReaderError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .sessionsDirectoryMissing(let url):
+            return "Codex sessions directory is missing: \(url.path)"
+        }
+    }
+}
+
 public final class CodexUsageReader: Sendable {
     public let sessionsDirectory: URL
     public let calendar: Calendar

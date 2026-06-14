@@ -437,19 +437,32 @@ final class UsageViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var refreshPulse = false
 
-    private let reader = CodexUsageReader()
+    private let usageService = CodexUsageService()
+    private var refreshTask: Task<Void, Never>?
 
     func refresh() {
         withAnimation(.easeInOut(duration: 0.18)) {
             refreshPulse.toggle()
         }
 
-        do {
-            snapshot = try reader.todaySnapshot()
-            errorMessage = nil
-        } catch {
-            snapshot = .empty
-            errorMessage = "\(error)"
+        refreshTask?.cancel()
+        refreshTask = Task { [usageService] in
+            do {
+                let nextSnapshot = try await usageService.todaySnapshot()
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                snapshot = nextSnapshot
+                errorMessage = nil
+            } catch {
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                snapshot = .empty
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
