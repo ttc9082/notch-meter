@@ -16,13 +16,21 @@ This is an early prototype:
 - local Codex token/rate-limit provider: working
 - additional coding-agent/model providers: planned
 - NotchNook or other notch-widget host: planned
-- packaged `.app` release: planned
+- packaged `.app` / `.dmg` release workflow: working
 
 ## Build
 
 ```sh
 swift build
 ```
+
+## Package DMG
+
+```sh
+scripts/package-dmg.sh
+```
+
+The packaged app and DMG are written to `dist/`.
 
 ## Run
 
@@ -50,6 +58,13 @@ Maintainers can create and push the public GitHub repository with either `gh` or
 scripts/publish-github.sh
 ```
 
+GitHub Actions runs CI on pushes and pull requests. Pushing a version tag creates a release DMG:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## What It Shows
 
 - Current provider rate-limit usage, when present in the newest local usage event
@@ -71,7 +86,7 @@ It does not read, store, upload, or display prompt/response text.
 - Add a proper SwiftUI popover with compact charts
 - Add Claude Code and other provider adapters
 - Add a NotchNook-compatible widget adapter if/when a public widget API is available
-- Add a signed `.app` packaging workflow
+- Add Developer ID signing and notarization for release builds
 - Add settings for custom Codex data directories and refresh intervals
 
 ## Contributing
