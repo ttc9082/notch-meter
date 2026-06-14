@@ -139,7 +139,7 @@ struct NotchOverlayMetrics {
                 totalWidth: notchWidth + earWidth * 2,
                 notchWidth: notchWidth,
                 menuBarHeight: menuBarHeight,
-                expandedHeight: menuBarHeight + 286
+                expandedHeight: menuBarHeight + 304
             )
         }
 

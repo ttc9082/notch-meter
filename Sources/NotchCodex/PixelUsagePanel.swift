@@ -299,6 +299,19 @@ private enum NotchTheme: CaseIterable {
             return 10
         }
     }
+
+    var expandedDeckHeight: CGFloat {
+        switch self {
+        case .pixel:
+            return 276
+        case .orbit:
+            return 292
+        case .cobalt:
+            return 244
+        case .longTable:
+            return 288
+        }
+    }
 }
 
 @MainActor
@@ -351,7 +364,7 @@ struct NotchOverlayView: View {
     }
 
     private var visibleHeight: CGFloat {
-        metrics.menuBarHeight + (metrics.expandedHeight - metrics.menuBarHeight) * expansionProgress
+        metrics.menuBarHeight + theme.expandedDeckHeight * expansionProgress
     }
 
     var body: some View {
@@ -361,16 +374,18 @@ struct NotchOverlayView: View {
                 .shadow(color: Color.black.opacity(0.34), radius: 12, x: 0, y: 6)
                 .frame(height: visibleHeight)
                 .animation(expansionAnimation, value: expanded)
+                .animation(expansionAnimation, value: theme)
 
             VStack(spacing: 0) {
                 notchCap
 
                 expandedDeck
                     .opacity(expanded ? 1 : 0)
-                    .frame(height: (metrics.expandedHeight - metrics.menuBarHeight) * expansionProgress, alignment: .top)
+                    .frame(height: theme.expandedDeckHeight * expansionProgress, alignment: .top)
                     .clipped()
                     .allowsHitTesting(expanded)
                     .animation(expansionAnimation, value: expanded)
+                    .animation(expansionAnimation, value: theme)
 
                 Spacer(minLength: 0)
             }
@@ -382,6 +397,7 @@ struct NotchOverlayView: View {
         )
         .clipShape(TopAnchoredNotchMask(height: visibleHeight))
         .contentShape(TopAnchoredNotchMask(height: visibleHeight))
+        .animation(expansionAnimation, value: theme)
         .background(Color.clear)
         .onHover { inside in
             guard !inside else {
@@ -504,7 +520,7 @@ struct NotchOverlayView: View {
             .padding(.top, theme.topPadding)
             .padding(.bottom, theme.bottomPadding)
         }
-        .frame(width: metrics.totalWidth, height: metrics.expandedHeight - metrics.menuBarHeight)
+        .frame(width: metrics.totalWidth, height: theme.expandedDeckHeight)
     }
 
     private func toggleExpanded() {
