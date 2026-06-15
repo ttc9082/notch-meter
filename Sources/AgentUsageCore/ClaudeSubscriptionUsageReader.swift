@@ -2,11 +2,19 @@ import Foundation
 
 public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
     private static let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+    private static let defaultCacheTTL: TimeInterval = 300
+    private static let defaultFailureCooldown: TimeInterval = 300
 
     public let usageURL: URL
     public let tokenURL: URL
     private let environmentCredentials: CodexOAuthCredentials?
     private let credentialStore: AgentOAuthFileStore
+    private let cacheTTL: TimeInterval
+    private let failureCooldown: TimeInterval
+    private let userAgent: String
+    private var cachedSnapshot: CodexUsageSnapshot?
+    private var cachedAt: Date?
+    private var cooldownUntil: Date?
 
     public convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let accessToken = environment["NOTCHMETER_CLAUDE_ACCESS_TOKEN"]
@@ -23,7 +31,16 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
                 .flatMap(URL.init(string:))
                 ?? URL(string: "https://platform.claude.com/v1/oauth/token")!,
             environmentCredentials: environmentCredentials,
-            credentialStore: .shared
+            credentialStore: .shared,
+            cacheTTL: Self.interval(
+                from: environment["NOTCHMETER_CLAUDE_USAGE_CACHE_SECONDS"],
+                fallback: Self.defaultCacheTTL
+            ),
+            failureCooldown: Self.interval(
+                from: environment["NOTCHMETER_CLAUDE_FAILURE_COOLDOWN_SECONDS"],
+                fallback: Self.defaultFailureCooldown
+            ),
+            userAgent: Self.claudeCodeUserAgent(environment: environment)
         )
     }
 
@@ -31,21 +48,44 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         usageURL: URL = URL(string: "https://api.anthropic.com/api/oauth/usage")!,
         tokenURL: URL = URL(string: "https://platform.claude.com/v1/oauth/token")!,
         environmentCredentials: CodexOAuthCredentials? = nil,
-        credentialStore: AgentOAuthFileStore = .shared
+        credentialStore: AgentOAuthFileStore = .shared,
+        cacheTTL: TimeInterval = 300,
+        failureCooldown: TimeInterval = 300,
+        userAgent: String? = nil
     ) {
         self.usageURL = usageURL
         self.tokenURL = tokenURL
         self.environmentCredentials = environmentCredentials
         self.credentialStore = credentialStore
+        self.cacheTTL = cacheTTL
+        self.failureCooldown = failureCooldown
+        self.userAgent = userAgent ?? Self.claudeCodeUserAgent()
     }
 
     public func todaySnapshot(now: Date = Date()) async throws -> CodexUsageSnapshot {
+        if let cachedSnapshot,
+           let cachedAt,
+           now.timeIntervalSince(cachedAt) < cacheTTL {
+            return cachedSnapshot
+        }
+
+        if let cooldownUntil,
+           now < cooldownUntil,
+           let cachedSnapshot {
+            return cachedSnapshot
+        }
+
         var credentials = try loadCredentials()
         do {
-            return try await fetchSnapshot(accessToken: credentials.accessToken)
+            return try await fetchSnapshot(accessToken: credentials.accessToken, now: now)
         } catch CodexRemoteUsageError.requestFailed(let status) where status == 401 {
             credentials = try await refreshCredentials(credentials)
-            return try await fetchSnapshot(accessToken: credentials.accessToken)
+            return try await fetchSnapshot(accessToken: credentials.accessToken, now: now)
+        } catch {
+            if let cachedSnapshot {
+                return cachedSnapshot
+            }
+            throw error
         }
     }
 
@@ -56,16 +96,21 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         return (try? credentialStore.load(provider: .claude)) != nil
     }
 
-    private func fetchSnapshot(accessToken: String) async throws -> CodexUsageSnapshot {
+    private func fetchSnapshot(accessToken: String, now: Date) async throws -> CodexUsageSnapshot {
         var request = URLRequest(url: usageURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await AgentUsageNetwork.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
+            if http.statusCode == 429 {
+                let delay = Self.retryDelay(from: http) ?? failureCooldown
+                cooldownUntil = now.addingTimeInterval(delay)
+            }
             throw CodexRemoteUsageError.requestFailed(http.statusCode)
         }
 
@@ -74,7 +119,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             throw CodexRemoteUsageError.emptyResponse
         }
 
-        return CodexUsageSnapshot(
+        let snapshot = CodexUsageSnapshot(
             scannedFiles: 0,
             sessionsWithUsage: 0,
             totalUsage: .zero,
@@ -83,6 +128,10 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             claudeDetails: ClaudeUsageParser.details(from: object),
             newestEventDate: Date()
         )
+        cachedSnapshot = snapshot
+        cachedAt = now
+        cooldownUntil = nil
+        return snapshot
     }
 
     private func loadCredentials() throws -> CodexOAuthCredentials {
@@ -147,6 +196,86 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             return Date().addingTimeInterval(seconds)
         }
         return nil
+    }
+
+    private static func interval(from value: String?, fallback: TimeInterval) -> TimeInterval {
+        guard let value,
+              let interval = TimeInterval(value),
+              interval >= 0 else {
+            return fallback
+        }
+        return interval
+    }
+
+    private static func retryDelay(from response: HTTPURLResponse) -> TimeInterval? {
+        guard let rawValue = response.value(forHTTPHeaderField: "Retry-After") else {
+            return nil
+        }
+        if let seconds = TimeInterval(rawValue), seconds > 0 {
+            return seconds
+        }
+        if let date = HTTPDateFormatter.shared.date(from: rawValue) {
+            return max(0, date.timeIntervalSinceNow)
+        }
+        return nil
+    }
+
+    private static func claudeCodeUserAgent(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String {
+        if let configured = environment["NOTCHMETER_CLAUDE_USER_AGENT"],
+           !configured.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return configured
+        }
+        return "claude-code/\(detectClaudeCodeVersion() ?? "2.1.0")"
+    }
+
+    private static func detectClaudeCodeVersion() -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["claude", "--version"]
+
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+
+        guard process.terminationStatus == 0 else {
+            return nil
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        guard let versionOutput = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+
+        return versionOutput
+            .split(whereSeparator: { $0.isWhitespace })
+            .first
+            .map(String.init)
+    }
+}
+
+private final class HTTPDateFormatter: @unchecked Sendable {
+    static let shared = HTTPDateFormatter()
+
+    private let formatter: DateFormatter
+
+    private init() {
+        formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE',' dd MMM yyyy HH':'mm':'ss z"
+    }
+
+    func date(from string: String) -> Date? {
+        formatter.date(from: string)
     }
 }
 
