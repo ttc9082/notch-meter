@@ -702,7 +702,12 @@ struct NotchOverlayView: View {
                             )
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: expanded ? .center : .trailing
+                    )
+                    .padding(.trailing, expanded ? 0 : 8)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -905,8 +910,8 @@ private struct CompactRemainingLabel: View {
         .font(.system(size: compactFontSize, weight: theme.labelWeight, design: theme.fontDesign))
         .lineLimit(1)
         .minimumScaleFactor(0.72)
-        .padding(.leading, provider == nil ? 8 : 10)
-        .padding(.trailing, 8)
+        .padding(.leading, provider == nil ? 8 : 13)
+        .padding(.trailing, provider == nil ? 8 : 6)
     }
 
     private var compactFontSize: CGFloat {
