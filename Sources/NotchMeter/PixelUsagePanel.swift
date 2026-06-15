@@ -293,7 +293,18 @@ private enum NotchTheme: CaseIterable {
     }
 
     var bottomPadding: CGFloat {
-        16
+        16 + sourceBadgeReserve
+    }
+
+    var sourceBadgeReserve: CGFloat {
+        switch self {
+        case .swiss:
+            return 28
+        case .bauhaus, .cobalt:
+            return 30
+        default:
+            return 32
+        }
     }
 
     var gridSpacing: CGFloat {
@@ -417,17 +428,17 @@ private enum NotchTheme: CaseIterable {
     var expandedDeckHeight: CGFloat {
         switch self {
         case .pixel:
-            return 276
+            return 300
         case .bauhaus:
-            return 260
+            return 284
         case .swiss:
-            return 228
+            return 252
         case .artDeco:
-            return 304
+            return 328
         case .cobalt:
-            return 244
+            return 268
         case .longTable:
-            return 288
+            return 312
         }
     }
 }
@@ -796,7 +807,7 @@ struct NotchOverlayView: View {
             }
             .padding(.horizontal, theme.horizontalPadding)
             .padding(.leading, 2)
-            .padding(.bottom, 7)
+            .padding(.bottom, 13)
 
             if let toastMessage = viewModel.toastMessage {
                 VStack {
