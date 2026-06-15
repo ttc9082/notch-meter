@@ -723,8 +723,51 @@ private enum NotchOverlayModal: Equatable {
     case proxy
 }
 
+struct OAuthCodeRequest: Identifiable, Equatable {
+    let id: UUID
+    let provider: AgentUsageProvider
+}
+
+@MainActor
+final class OAuthCodeBroker: ObservableObject {
+    @Published var request: OAuthCodeRequest?
+    private var continuation: CheckedContinuation<String, Error>?
+
+    func requestCode(provider: AgentUsageProvider) async throws -> String {
+        if continuation != nil {
+            throw CodexRemoteUsageError.missingCredentials
+        }
+
+        let request = OAuthCodeRequest(id: UUID(), provider: provider)
+        return try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+            self.request = request
+        }
+    }
+
+    func submit(_ value: String) {
+        guard let continuation else {
+            return
+        }
+        self.continuation = nil
+        request = nil
+        continuation.resume(returning: value)
+    }
+
+    func cancel() {
+        guard let continuation else {
+            request = nil
+            return
+        }
+        self.continuation = nil
+        request = nil
+        continuation.resume(throwing: CodexRemoteUsageError.missingCredentials)
+    }
+}
+
 struct NotchOverlayView: View {
     @ObservedObject var viewModel: UsageViewModel
+    @ObservedObject var oauthCodeBroker: OAuthCodeBroker
     let metrics: NotchOverlayMetrics
     let onRefresh: () -> Void
     let onSelectProvider: (AgentUsageProvider) -> Void
@@ -738,6 +781,7 @@ struct NotchOverlayView: View {
     @State private var theme: NotchTheme = .pixel
     @State private var activeModal: NotchOverlayModal?
     @State private var proxyDraft = ""
+    @State private var oauthCodeDraft = ""
 
     private var expansionAnimation: Animation {
         .easeInOut(duration: expanded ? 0.24 : 0.18)
@@ -797,7 +841,11 @@ struct NotchOverlayView: View {
                 Spacer(minLength: 0)
             }
 
-            if let activeModal {
+            if let request = oauthCodeBroker.request {
+                oauthCodeModalOverlay(request)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                    .zIndex(11)
+            } else if let activeModal {
                 modalOverlay(activeModal)
                     .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                     .zIndex(10)
@@ -817,7 +865,7 @@ struct NotchOverlayView: View {
             guard !inside else {
                 return
             }
-            guard activeModal == nil else {
+            guard activeModal == nil, oauthCodeBroker.request == nil else {
                 return
             }
             withAnimation(.easeInOut(duration: 0.18)) {
@@ -832,6 +880,17 @@ struct NotchOverlayView: View {
         }
         .onChange(of: expanded) { _, newValue in
             onExpansionChange(newValue)
+        }
+        .onChange(of: oauthCodeBroker.request) { _, request in
+            guard request != nil else {
+                oauthCodeDraft = ""
+                return
+            }
+            oauthCodeDraft = ""
+            withAnimation(.easeInOut(duration: 0.18)) {
+                expanded = true
+            }
+            NSApp.activate(ignoringOtherApps: true)
         }
         .contextMenu {
             Button("Configure Proxy...") {
@@ -918,7 +977,7 @@ struct NotchOverlayView: View {
             guard inside else {
                 return
             }
-            guard activeModal == nil else {
+            guard activeModal == nil, oauthCodeBroker.request == nil else {
                 return
             }
             withAnimation(.easeInOut(duration: 0.24)) {
@@ -1037,6 +1096,19 @@ struct NotchOverlayView: View {
         }
     }
 
+    private func submitOAuthCode() {
+        let trimmed = oauthCodeDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        oauthCodeBroker.submit(trimmed)
+    }
+
+    private func cancelOAuthCode() {
+        oauthCodeBroker.cancel()
+    }
+
     @ViewBuilder
     private func modalOverlay(_ modal: NotchOverlayModal) -> some View {
         ZStack(alignment: .top) {
@@ -1074,6 +1146,32 @@ struct NotchOverlayView: View {
                             onCancel: dismissModal
                         )
                     }
+                }
+                .padding(.horizontal, theme.horizontalPadding)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(width: metrics.totalWidth, height: visibleHeight, alignment: .top)
+    }
+
+    private func oauthCodeModalOverlay(_ request: OAuthCodeRequest) -> some View {
+        ZStack(alignment: .top) {
+            Color.black.opacity(0.22)
+                .contentShape(Rectangle())
+
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: metrics.menuBarHeight + 18)
+
+                NotchModalSurface(theme: theme) {
+                    NotchOAuthCodeModal(
+                        provider: request.provider,
+                        draft: $oauthCodeDraft,
+                        theme: theme,
+                        onSubmit: submitOAuthCode,
+                        onCancel: cancelOAuthCode
+                    )
                 }
                 .padding(.horizontal, theme.horizontalPadding)
 
@@ -1473,6 +1571,49 @@ private struct NotchProxyModal: View {
                 Spacer()
                 NotchModalButton(title: "CANCEL", tint: theme.hudMuted, theme: theme, action: onCancel)
                 NotchModalButton(title: "SAVE", tint: theme.actionAccent, theme: theme, action: onSave)
+            }
+        }
+    }
+}
+
+private struct NotchOAuthCodeModal: View {
+    let provider: AgentUsageProvider
+    @Binding var draft: String
+    let theme: NotchTheme
+    let onSubmit: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var inputFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            modalHeader(
+                title: "\(provider.compactName) Authorization",
+                message: "Paste the authorization code after approving in the browser. A full callback URL also works.",
+                theme: theme
+            )
+
+            TextField("Paste authorization code", text: $draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, weight: theme.labelWeight, design: .monospaced))
+                .foregroundStyle(theme.hudInk)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(theme.panel.opacity(0.78))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(theme.edge.opacity(0.85), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .onSubmit(onSubmit)
+                .focused($inputFocused)
+                .onAppear {
+                    inputFocused = true
+                }
+
+            HStack(spacing: 8) {
+                Spacer()
+                NotchModalButton(title: "CANCEL", tint: theme.hudMuted, theme: theme, action: onCancel)
+                NotchModalButton(title: "CONTINUE", tint: theme.actionAccent, theme: theme, action: onSubmit)
             }
         }
     }

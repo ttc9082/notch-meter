@@ -6,7 +6,10 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let viewModel = UsageViewModel()
-    private let signInController = CodexOAuthSignInController()
+    private let oauthCodeBroker = OAuthCodeBroker()
+    private lazy var signInController = CodexOAuthSignInController { [oauthCodeBroker] provider in
+        try await oauthCodeBroker.requestCode(provider: provider)
+    }
     private let overlay = NotchOverlayController()
     private var timer: Timer?
 
@@ -34,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         overlay.show(
             rootView: NotchOverlayView(
                 viewModel: viewModel,
+                oauthCodeBroker: oauthCodeBroker,
                 metrics: overlay.metrics,
                 onRefresh: { [weak self] in self?.manualRefresh() },
                 onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },

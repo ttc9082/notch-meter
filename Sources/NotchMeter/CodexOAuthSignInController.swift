@@ -6,7 +6,12 @@ import Network
 
 @MainActor
 final class CodexOAuthSignInController {
+    private let manualCodeRequester: (AgentUsageProvider) async throws -> String
     private var pendingTask: Task<CodexOAuthCredentials, Error>?
+
+    init(manualCodeRequester: @escaping (AgentUsageProvider) async throws -> String) {
+        self.manualCodeRequester = manualCodeRequester
+    }
 
     func signIn(provider: AgentUsageProvider) async throws -> CodexOAuthCredentials {
         if let pendingTask {
@@ -66,7 +71,8 @@ final class CodexOAuthSignInController {
     }
 
     private func requestManualAuthorizationCode(provider: AgentUsageProvider) async throws -> OAuthAuthorizationCode {
-        try await OAuthCodePrompt.show(provider: provider)
+        let pastedValue = try await manualCodeRequester(provider)
+        return try OAuthAuthorizationCode(pastedValue)
     }
 
     private func authorizationURL(config: OAuthProviderConfig, codeChallenge: String, state: String) -> URL? {
@@ -196,134 +202,6 @@ private struct OAuthAuthorizationCode {
             return fragment
         }
         return nil
-    }
-}
-
-@MainActor
-private final class OAuthCodePrompt: NSObject, NSWindowDelegate, NSTextFieldDelegate {
-    private static var activePrompt: OAuthCodePrompt?
-
-    private var window: NSWindow?
-    private var input: NSTextField?
-    private var continuation: CheckedContinuation<OAuthAuthorizationCode, Error>?
-
-    static func show(provider: AgentUsageProvider) async throws -> OAuthAuthorizationCode {
-        let prompt = OAuthCodePrompt()
-        activePrompt = prompt
-        return try await withCheckedThrowingContinuation { continuation in
-            prompt.continuation = continuation
-            prompt.showWindow(provider: provider)
-        }
-    }
-
-    private func showWindow(provider: AgentUsageProvider) {
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 176))
-
-        let title = NSTextField(labelWithString: "\(provider.displayName) Authorization")
-        title.font = .systemFont(ofSize: 15, weight: .semibold)
-        title.textColor = .labelColor
-        title.frame = NSRect(x: 22, y: 136, width: 416, height: 22)
-
-        let message = NSTextField(wrappingLabelWithString: "After approving in the browser, paste the authorization code here. A full callback URL also works.")
-        message.font = .systemFont(ofSize: 12)
-        message.textColor = .secondaryLabelColor
-        message.frame = NSRect(x: 22, y: 96, width: 416, height: 34)
-
-        let input = PasteFriendlyTextField(frame: NSRect(x: 22, y: 62, width: 416, height: 26))
-        input.placeholderString = "Paste authorization code"
-        input.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        input.delegate = self
-        self.input = input
-
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancel))
-        cancel.frame = NSRect(x: 250, y: 20, width: 88, height: 30)
-        cancel.keyEquivalent = "\u{1b}"
-
-        let `continue` = NSButton(title: "Continue", target: self, action: #selector(submit))
-        `continue`.frame = NSRect(x: 350, y: 20, width: 88, height: 30)
-        `continue`.bezelStyle = .rounded
-        `continue`.keyEquivalent = "\r"
-
-        [title, message, input, cancel, `continue`].forEach(contentView.addSubview)
-
-        let window = NSWindow(
-            contentRect: contentView.frame,
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = "NotchMeter"
-        window.contentView = contentView
-        window.delegate = self
-        window.isReleasedWhenClosed = false
-        window.center()
-
-        self.window = window
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(input)
-    }
-
-    func controlTextDidEndEditing(_ notification: Notification) {
-        guard let event = NSApp.currentEvent, event.type == .keyDown else {
-            return
-        }
-        if event.keyCode == 36 {
-            submit()
-        }
-    }
-
-    func windowWillClose(_ notification: Notification) {
-        resume(throwing: CodexRemoteUsageError.missingCredentials)
-    }
-
-    @objc private func submit() {
-        do {
-            let code = try OAuthAuthorizationCode(input?.stringValue ?? "")
-            resume(returning: code)
-        } catch {
-            NSSound.beep()
-        }
-    }
-
-    @objc private func cancel() {
-        resume(throwing: CodexRemoteUsageError.missingCredentials)
-    }
-
-    private func resume(returning code: OAuthAuthorizationCode) {
-        guard let continuation else {
-            return
-        }
-        self.continuation = nil
-        window?.delegate = nil
-        window?.close()
-        window = nil
-        Self.activePrompt = nil
-        continuation.resume(returning: code)
-    }
-
-    private func resume(throwing error: Error) {
-        guard let continuation else {
-            return
-        }
-        self.continuation = nil
-        window?.delegate = nil
-        window?.close()
-        window = nil
-        Self.activePrompt = nil
-        continuation.resume(throwing: error)
-    }
-}
-
-private final class PasteFriendlyTextField: NSTextField {
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let isCommandV = event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command)
-            && event.charactersIgnoringModifiers?.lowercased() == "v"
-        if isCommandV {
-            currentEditor()?.paste(nil)
-            return true
-        }
-        return super.performKeyEquivalent(with: event)
     }
 }
 
