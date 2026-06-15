@@ -6,7 +6,7 @@ import Network
 
 @MainActor
 final class CodexOAuthSignInController {
-    private let redirectURI = "http://127.0.0.1:1455/auth/callback"
+    private let redirectURI = "http://localhost:1455/auth/callback"
     private var pendingTask: Task<CodexOAuthCredentials, Error>?
 
     func signIn(provider: AgentUsageProvider) async throws -> CodexOAuthCredentials {
@@ -175,7 +175,8 @@ private struct OAuthProviderConfig {
             scope = "openid profile email offline_access"
             extraQueryItems = [
                 URLQueryItem(name: "id_token_add_organizations", value: "true"),
-                URLQueryItem(name: "originator", value: "openai_native")
+                URLQueryItem(name: "codex_cli_simplified_flow", value: "true"),
+                URLQueryItem(name: "originator", value: "codex_cli_rs")
             ]
             tokenBody = .form
         case .claude:

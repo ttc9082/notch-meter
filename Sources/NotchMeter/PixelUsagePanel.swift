@@ -437,6 +437,8 @@ final class UsageViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var refreshPulse = false
     @Published var authMessage: String?
+    @Published var isRefreshing = false
+    @Published var toastMessage: String?
     @Published var selectedProvider: AgentUsageProvider = UserDefaults.standard.string(forKey: "selectedProvider")
         .flatMap(AgentUsageProvider.init(rawValue:)) ?? .codex
 
@@ -444,10 +446,14 @@ final class UsageViewModel: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var signInTask: Task<Void, Never>?
 
-    func refresh() {
+    func refresh(showToast: Bool = false) {
         withAnimation(.easeInOut(duration: 0.18)) {
             refreshPulse.toggle()
         }
+        if showToast {
+            toastMessage = nil
+        }
+        isRefreshing = true
 
         refreshTask?.cancel()
         let provider = selectedProvider
@@ -460,6 +466,10 @@ final class UsageViewModel: ObservableObject {
 
                 snapshot = nextSnapshot
                 errorMessage = nil
+                isRefreshing = false
+                if showToast {
+                    presentToast("Synced \(nextSnapshot.source?.label ?? provider.compactName)")
+                }
             } catch {
                 guard !Task.isCancelled else {
                     return
@@ -467,6 +477,10 @@ final class UsageViewModel: ObservableObject {
 
                 snapshot = .empty
                 errorMessage = error.localizedDescription
+                isRefreshing = false
+                if showToast {
+                    presentToast("Sync failed")
+                }
             }
         }
     }
@@ -499,12 +513,31 @@ final class UsageViewModel: ObservableObject {
                 selectedProvider = provider
                 UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
                 authMessage = "\(provider.displayName) sign-in complete"
-                refresh()
+                presentToast("\(provider.displayName) signed in")
+                refresh(showToast: true)
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
                 authMessage = error.localizedDescription
+                presentToast("Sign-in failed")
+            }
+        }
+    }
+
+    private func presentToast(_ message: String) {
+        withAnimation(.easeOut(duration: 0.16)) {
+            toastMessage = message
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            guard !Task.isCancelled else {
+                return
+            }
+            withAnimation(.easeIn(duration: 0.18)) {
+                if toastMessage == message {
+                    toastMessage = nil
+                }
             }
         }
     }
@@ -620,7 +653,7 @@ struct NotchOverlayView: View {
                 } label: {
                     Group {
                         if expanded {
-                            NotchActionLabel(title: "SYNC", tint: theme.accentB)
+                            NotchActionLabel(title: viewModel.isRefreshing ? "SYNC..." : "SYNC", tint: theme.accentB)
                         } else {
                             CompactRemainingLabel(
                                 label: "5H",
@@ -704,6 +737,25 @@ struct NotchOverlayView: View {
             .padding(.horizontal, theme.horizontalPadding)
             .padding(.top, theme.topPadding)
             .padding(.bottom, theme.bottomPadding)
+
+            VStack {
+                HStack {
+                    Spacer()
+                    SourceBadge(text: viewModel.snapshot.source?.label ?? "\(viewModel.selectedProvider.compactName) --", theme: theme)
+                }
+                Spacer()
+            }
+            .padding(.top, 4)
+            .padding(.horizontal, theme.horizontalPadding)
+
+            if let toastMessage = viewModel.toastMessage {
+                VStack {
+                    Spacer()
+                    ToastPill(text: toastMessage, theme: theme)
+                        .padding(.bottom, 8)
+                }
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
         }
         .frame(width: metrics.totalWidth, height: theme.expandedDeckHeight)
     }
@@ -828,6 +880,50 @@ private struct NotchActionLabel: View {
             .lineLimit(1)
             .minimumScaleFactor(0.72)
             .padding(.horizontal, 6)
+    }
+}
+
+private struct SourceBadge: View {
+    let text: String
+    let theme: NotchTheme
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 8, weight: theme.labelWeight, design: theme.fontDesign))
+            .foregroundStyle(theme.hudMuted.opacity(0.58))
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color.black.opacity(0.72))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .stroke(theme.hudMuted.opacity(0.18), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .allowsHitTesting(false)
+    }
+}
+
+private struct ToastPill: View {
+    let text: String
+    let theme: NotchTheme
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: theme.labelWeight, design: theme.fontDesign))
+            .foregroundStyle(theme.hudInk)
+            .lineLimit(1)
+            .minimumScaleFactor(0.72)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.black.opacity(0.9))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(theme.accentB.opacity(0.42), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 3)
+            .allowsHitTesting(false)
     }
 }
 

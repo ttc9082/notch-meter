@@ -45,6 +45,7 @@ public struct CodexUsageSnapshot: Equatable, Sendable {
     public var lastUsage: TokenUsage?
     public var rateLimits: RateLimitStatus?
     public var newestEventDate: Date?
+    public var source: UsageDataSource?
 
     public static let empty = CodexUsageSnapshot(
         scannedFiles: 0,
@@ -52,8 +53,37 @@ public struct CodexUsageSnapshot: Equatable, Sendable {
         totalUsage: .zero,
         lastUsage: nil,
         rateLimits: nil,
-        newestEventDate: nil
+        newestEventDate: nil,
+        source: nil
     )
+}
+
+public struct UsageDataSource: Equatable, Sendable {
+    public var provider: AgentUsageProvider
+    public var mode: UsageDataSourceMode
+
+    public init(provider: AgentUsageProvider, mode: UsageDataSourceMode) {
+        self.provider = provider
+        self.mode = mode
+    }
+
+    public var label: String {
+        "\(provider.compactName) \(mode.label)"
+    }
+}
+
+public enum UsageDataSourceMode: String, Equatable, Sendable {
+    case remote
+    case local
+
+    public var label: String {
+        switch self {
+        case .remote:
+            return "REMOTE"
+        case .local:
+            return "LOCAL"
+        }
+    }
 }
 
 public enum CodexUsageReaderError: Error, Equatable {

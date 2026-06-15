@@ -26,12 +26,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewModel.refresh()
     }
 
+    private func manualRefresh() {
+        viewModel.refresh(showToast: true)
+    }
+
     private func configureOverlay() {
         overlay.show(
             rootView: NotchOverlayView(
                 viewModel: viewModel,
                 metrics: overlay.metrics,
-                onRefresh: { [weak self] in self?.refresh() },
+                onRefresh: { [weak self] in self?.manualRefresh() },
                 onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },
                 onSignIn: { [weak self] provider in self?.signIn(provider: provider) },
                 onSignOut: { [weak self] provider in self?.signOut(provider: provider) },

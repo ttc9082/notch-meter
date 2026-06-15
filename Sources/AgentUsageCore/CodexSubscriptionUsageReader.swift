@@ -74,16 +74,22 @@ public final class CodexUsageService: @unchecked Sendable {
     ) async throws -> CodexUsageSnapshot {
         switch mode {
         case .local:
-            return try localReader.todaySnapshot(now: now)
+            return try localSnapshot(provider: provider, now: now)
         case .remote:
             return try await remoteSnapshot(provider: provider, now: now)
         case .auto:
             do {
                 return try await remoteSnapshot(provider: provider, now: now)
             } catch {
-                return try localReader.todaySnapshot(now: now)
+                return try localSnapshot(provider: provider, now: now)
             }
         }
+    }
+
+    private func localSnapshot(provider: AgentUsageProvider, now: Date) throws -> CodexUsageSnapshot {
+        var snapshot = try localReader.todaySnapshot(now: now)
+        snapshot.source = UsageDataSource(provider: provider, mode: .local)
+        return snapshot
     }
 
     private func remoteSnapshot(provider: AgentUsageProvider, now: Date) async throws -> CodexUsageSnapshot {
@@ -94,6 +100,7 @@ public final class CodexUsageService: @unchecked Sendable {
         case .claude:
             snapshot = try await claudeReader.todaySnapshot(now: now)
         }
+        snapshot.source = UsageDataSource(provider: provider, mode: .remote)
 
         if provider == .codex, snapshot.totalUsage == .zero {
             let localSnapshot = try? localReader.todaySnapshot(now: now)
