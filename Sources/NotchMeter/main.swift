@@ -147,7 +147,7 @@ struct NotchOverlayMetrics {
     }
 
     var earWidth: CGFloat {
-        max(104, (totalWidth - notchWidth) / 2)
+        max(0, (totalWidth - notchWidth) / 2)
     }
 
     static func current(screen: NSScreen? = NSScreen.main ?? NSScreen.screens.first) -> NotchOverlayMetrics {

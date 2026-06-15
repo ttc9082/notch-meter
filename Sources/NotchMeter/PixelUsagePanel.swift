@@ -959,7 +959,7 @@ struct NotchOverlayView: View {
                         maxHeight: .infinity,
                         alignment: expanded ? .center : .trailing
                     )
-                    .padding(.trailing, expanded ? 0 : 8)
+                    .padding(.trailing, expanded ? 0 : 4)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -1280,23 +1280,33 @@ private struct CompactRemainingLabel: View {
     let provider: AgentUsageProvider?
 
     var body: some View {
+        ViewThatFits(in: .horizontal) {
+            compactRow(showProvider: true, showLabel: true)
+            compactRow(showProvider: true, showLabel: false)
+            compactRow(showProvider: false, showLabel: false)
+        }
+        .font(.system(size: compactFontSize, weight: theme.labelWeight, design: theme.fontDesign))
+        .lineLimit(1)
+        .minimumScaleFactor(0.64)
+        .padding(.leading, provider == nil ? 6 : 4)
+        .padding(.trailing, 4)
+    }
+
+    private func compactRow(showProvider: Bool, showLabel: Bool) -> some View {
         HStack(spacing: 4) {
-            if let provider {
+            if showProvider, let provider {
                 ProviderLogoMark(provider: provider, tint: tint)
                     .frame(width: 11, height: 11)
-                    .padding(.trailing, 1)
             }
-            Text(label)
-                .foregroundStyle(theme.muted)
+            if showLabel {
+                Text(label)
+                    .foregroundStyle(theme.muted)
+            }
             Text(value)
                 .foregroundStyle(tint)
                 .contentTransition(.numericText())
         }
-        .font(.system(size: compactFontSize, weight: theme.labelWeight, design: theme.fontDesign))
-        .lineLimit(1)
-        .minimumScaleFactor(0.72)
-        .padding(.leading, provider == nil ? 8 : 13)
-        .padding(.trailing, provider == nil ? 8 : 6)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private var compactFontSize: CGFloat {
