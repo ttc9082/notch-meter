@@ -4,9 +4,17 @@
 
 NotchMeter is a tiny open-source macOS notch HUD for keeping coding-agent and model usage visible without leaving the workspace.
 
-It visually attaches to the MacBook notch, stays compact during normal work, and expands into a quota dashboard on hover. The first supported providers are Codex and Claude Code, with a provider-ready structure for more coding agents and model usage sources later.
+It is a good-looking coding-agent HUD that pins subscription usage to the top of your screen and tries to blend directly into the real MacBook notch. In its compact state it shows quick 5-hour and weekly quota signals; on hover, it expands into a detail panel with quota windows, reset times, provider state, and token data.
+
+NotchMeter ships with several built-in themes and supports both Codex and Claude Code. The project is also structured so more coding agents, models, and provider backends can be added later.
 
 ![NotchMeter v1.0 themes](docs/assets/notchmeter-v1.0-themes.png)
+
+## Why This Exists
+
+On Friday, 2026-06-12, my company gave me an M-series MacBook. I decided to spend the weekend building something with it, and NotchMeter is what came out of that.
+
+This is my first macOS app, and also the first app built on this MBP. It was almost entirely vibe-coded, so I do not pretend to understand every implementation detail. There may be unknown bugs. Contributions are very welcome.
 
 ## Status
 
@@ -22,6 +30,18 @@ This is an early prototype:
 - remote Claude Code subscription provider: experimental
 - additional coding-agent/model providers: planned
 - signed and notarized app builds: planned
+
+## Provider Support
+
+### Codex
+
+Codex supports remote subscription usage through an authorization flow. That means NotchMeter can observe quota usage even if the usage happened somewhere else, such as another machine, another client, or another Codex surface.
+
+Codex also supports local data as a fallback. It can read local Codex session files, and it can reuse the local Codex authorization cache. If you already have Codex installed and signed in, this gives you a convenient path without signing in again inside NotchMeter.
+
+### Claude Code
+
+Claude Code currently supports code-based authorization and remote usage fetching only. I do not personally have a Claude Code subscription, so this provider has not been tested as deeply as Codex and may need community help to smooth out the details.
 
 ## Run From Source
 
