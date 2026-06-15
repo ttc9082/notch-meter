@@ -302,14 +302,7 @@ private enum NotchTheme: CaseIterable {
     }
 
     var footerTopSpacing: CGFloat {
-        switch self {
-        case .swiss, .cobalt:
-            return 14
-        case .bauhaus:
-            return 15
-        default:
-            return 16
-        }
+        contentSpacing
     }
 
     var gridSpacing: CGFloat {
@@ -454,7 +447,7 @@ private enum NotchTheme: CaseIterable {
     }
 
     var footerHeight: CGFloat {
-        34
+        22
     }
 
     private func detailCardsHeight(
@@ -881,7 +874,7 @@ struct NotchOverlayView: View {
         ZStack(alignment: .top) {
             PixelPalette.notch
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: theme.contentSpacing) {
                 VStack(alignment: .leading, spacing: theme.contentSpacing) {
                     DualLimitProgress(
                         primary: viewModel.snapshot.rateLimits?.primary,
@@ -910,8 +903,6 @@ struct NotchOverlayView: View {
                         onSignIn(viewModel.selectedProvider)
                     }
                 }
-                .frame(height: theme.footerHeight, alignment: .center)
-                .padding(.top, theme.footerTopSpacing)
                 .zIndex(2)
             }
             .padding(.horizontal, theme.horizontalPadding)
@@ -1096,7 +1087,6 @@ private struct ProviderSwitcherFooter: View {
                 }
             }
         }
-        .padding(.vertical, 5)
     }
 }
 
