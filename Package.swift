@@ -16,7 +16,10 @@ let package = Package(
         .target(name: "AgentUsageCore"),
         .executableTarget(
             name: "NotchMeter",
-            dependencies: ["AgentUsageCore"]
+            dependencies: ["AgentUsageCore"],
+            resources: [
+                .process("Resources")
+            ]
         ),
         .executableTarget(
             name: "UsageFixtureCheck",

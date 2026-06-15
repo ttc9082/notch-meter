@@ -1,4 +1,5 @@
 import AgentUsageCore
+import AppKit
 import SwiftUI
 
 private enum NotchTheme: CaseIterable {
@@ -964,64 +965,49 @@ private struct ProviderLogoMark: View {
     let tint: Color
 
     var body: some View {
-        Group {
-            switch provider {
-            case .codex:
-                OpenAIBlossomMark(tint: tint)
-            case .claude:
-                ClaudeStarMark(tint: tint)
-            }
-        }
+        ProviderLogoImage(provider: provider)
+            .foregroundStyle(tint)
         .accessibilityLabel(provider.displayName)
     }
 }
 
-private struct OpenAIBlossomMark: View {
-    let tint: Color
+private struct ProviderLogoImage: View {
+    let provider: AgentUsageProvider
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = min(proxy.size.width, proxy.size.height)
-            let petalWidth = size * 0.28
-            let petalHeight = size * 0.56
-
-            ZStack {
-                ForEach(0..<6, id: \.self) { index in
-                    Capsule(style: .continuous)
-                        .stroke(tint, lineWidth: max(1.1, size * 0.1))
-                        .frame(width: petalWidth, height: petalHeight)
-                        .offset(y: -size * 0.18)
-                        .rotationEffect(.degrees(Double(index) * 60))
-                }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+        if let image = ProviderLogoAssets.image(for: provider) {
+            Image(nsImage: image)
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+        } else {
+            Text(provider.compactName)
+                .font(.system(size: 8, weight: .black, design: .monospaced))
         }
     }
 }
 
-private struct ClaudeStarMark: View {
-    let tint: Color
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = min(proxy.size.width, proxy.size.height)
-            let armWidth = max(1.4, size * 0.16)
-            let armHeight = size * 0.9
-
-            ZStack {
-                ForEach(0..<4, id: \.self) { index in
-                    Capsule(style: .continuous)
-                        .fill(tint)
-                        .frame(width: armWidth, height: armHeight)
-                        .rotationEffect(.degrees(Double(index) * 45))
-                }
-
-                Circle()
-                    .fill(Color.black.opacity(0.72))
-                    .frame(width: size * 0.22, height: size * 0.22)
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+private enum ProviderLogoAssets {
+    static func image(for provider: AgentUsageProvider) -> NSImage? {
+        let name: String
+        switch provider {
+        case .codex:
+            name = "openai-symbol"
+        case .claude:
+            name = "claude-symbol"
         }
+
+        guard let url = Bundle.module.url(
+            forResource: name,
+            withExtension: "svg",
+            subdirectory: "ProviderLogos"
+        ),
+        let image = NSImage(contentsOf: url) else {
+            return nil
+        }
+
+        image.isTemplate = true
+        return image
     }
 }
 
