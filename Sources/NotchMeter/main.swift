@@ -38,7 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onRefresh: { [weak self] in self?.manualRefresh() },
                 onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },
                 onSignIn: { [weak self] provider in self?.signIn(provider: provider) },
-                onSignOut: { [weak self] provider in self?.signOut(provider: provider) },
                 onConfigureProxy: { [weak self] in self?.configureProxy() },
                 onClearProxy: { [weak self] in self?.clearProxy() },
                 onQuit: { NSApp.terminate(nil) },
@@ -57,11 +56,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewModel.signIn(provider: provider) { [signInController] provider in
             try await signInController.signIn(provider: provider)
         }
-    }
-
-    private func signOut(provider: AgentUsageProvider) {
-        signInController.signOut(provider: provider)
-        refresh()
     }
 
     private func configureProxy() {

@@ -201,12 +201,15 @@ private struct OAuthAuthorizationCode {
 
 @MainActor
 private final class OAuthCodePrompt: NSObject, NSWindowDelegate, NSTextFieldDelegate {
+    private static var activePrompt: OAuthCodePrompt?
+
     private var window: NSWindow?
     private var input: NSTextField?
     private var continuation: CheckedContinuation<OAuthAuthorizationCode, Error>?
 
     static func show(provider: AgentUsageProvider) async throws -> OAuthAuthorizationCode {
         let prompt = OAuthCodePrompt()
+        activePrompt = prompt
         return try await withCheckedThrowingContinuation { continuation in
             prompt.continuation = continuation
             prompt.showWindow(provider: provider)
@@ -295,6 +298,7 @@ private final class OAuthCodePrompt: NSObject, NSWindowDelegate, NSTextFieldDele
         window?.delegate = nil
         window?.close()
         window = nil
+        Self.activePrompt = nil
         continuation.resume(returning: code)
     }
 
@@ -306,6 +310,7 @@ private final class OAuthCodePrompt: NSObject, NSWindowDelegate, NSTextFieldDele
         window?.delegate = nil
         window?.close()
         window = nil
+        Self.activePrompt = nil
         continuation.resume(throwing: error)
     }
 }

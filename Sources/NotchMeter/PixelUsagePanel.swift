@@ -589,7 +589,6 @@ struct NotchOverlayView: View {
     let onRefresh: () -> Void
     let onSelectProvider: (AgentUsageProvider) -> Void
     let onSignIn: (AgentUsageProvider) -> Void
-    let onSignOut: (AgentUsageProvider) -> Void
     let onConfigureProxy: () -> Void
     let onClearProxy: () -> Void
     let onQuit: () -> Void
@@ -662,15 +661,6 @@ struct NotchOverlayView: View {
             onExpansionChange(newValue)
         }
         .contextMenu {
-            ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
-                Button("Sign in with \(provider.displayName)") {
-                    onSignIn(provider)
-                }
-            }
-            Button("Clear \(viewModel.selectedProvider.displayName) Sign-In") {
-                onSignOut(viewModel.selectedProvider)
-            }
-            Divider()
             Button("Configure Proxy...") {
                 onConfigureProxy()
             }
@@ -797,6 +787,12 @@ struct NotchOverlayView: View {
                         onSelectProvider: onSelectProvider
                     )
                     Spacer()
+                    ProviderLoginFooterButton(
+                        provider: viewModel.selectedProvider,
+                        theme: theme
+                    ) {
+                        onSignIn(viewModel.selectedProvider)
+                    }
                 }
             }
             .padding(.horizontal, theme.horizontalPadding)
@@ -999,6 +995,33 @@ private struct ProviderFooterButton: View {
 
     private var tint: Color {
         isSelected ? theme.actionAccent : theme.hudMuted
+    }
+}
+
+private struct ProviderLoginFooterButton: View {
+    let provider: AgentUsageProvider
+    let theme: NotchTheme
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                ProviderLogoMark(provider: provider, tint: theme.actionAccent)
+                    .frame(width: 10, height: 10)
+
+                Text("LOGIN")
+                    .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
+                    .foregroundStyle(theme.actionAccent)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(theme.actionAccent.opacity(0.12))
+            .clipShape(Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("Sign in with \(provider.displayName)")
     }
 }
 
