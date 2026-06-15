@@ -59,7 +59,7 @@ Supported values:
 - `remote`: require remote subscription usage for the selected provider.
 - `local`: only read local Codex session files.
 
-Remote subscription usage signs in with provider-compatible OAuth flows. Right-click the notch HUD to sign in to Codex or Claude Code. NotchMeter opens the browser, stores the resulting tokens per provider in `~/.notchmeter/auth.json`, and refreshes tokens when needed. Codex uses a local callback. Claude Code uses Anthropic's registered HTTPS callback, so after approval you paste the callback URL or authorization code back into NotchMeter.
+Remote subscription usage signs in with provider-compatible OAuth flows. Right-click the notch HUD to sign in to Codex or Claude Code. NotchMeter opens the browser, stores the resulting tokens per provider in `~/.notchmeter/auth.json`, and refreshes tokens when needed. Codex uses a local callback. Claude Code uses Anthropic's registered HTTPS callback, so after approval you paste the authorization code back into NotchMeter. Pasting the full callback URL also works.
 
 To force remote mode:
 
