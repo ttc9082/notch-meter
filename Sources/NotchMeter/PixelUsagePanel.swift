@@ -292,18 +292,16 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
-    var bottomPadding: CGFloat {
-        16 + sourceBadgeReserve
-    }
+    var bottomPadding: CGFloat { 13 }
 
-    var sourceBadgeReserve: CGFloat {
+    var footerTopSpacing: CGFloat {
         switch self {
-        case .swiss:
-            return 28
-        case .bauhaus, .cobalt:
-            return 30
+        case .swiss, .cobalt:
+            return 10
+        case .bauhaus:
+            return 12
         default:
-            return 32
+            return 14
         }
     }
 
@@ -449,15 +447,15 @@ private enum NotchTheme: CaseIterable {
     private func providerDeckAdjustment(for provider: AgentUsageProvider) -> CGFloat {
         switch provider {
         case .codex:
-            return 0
+            return 8
         case .claude:
             switch self {
             case .swiss, .cobalt:
-                return 18
+                return 54
             case .bauhaus:
-                return 12
+                return 46
             default:
-                return 8
+                return 42
             }
         }
     }
@@ -837,24 +835,22 @@ struct NotchOverlayView: View {
             PixelPalette.notch
 
             VStack(alignment: .leading, spacing: theme.contentSpacing) {
-                DualLimitProgress(
-                    primary: viewModel.snapshot.rateLimits?.primary,
-                    secondary: viewModel.snapshot.rateLimits?.secondary,
-                    primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
-                    secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
-                    pulse: viewModel.refreshPulse,
-                    theme: theme
-                )
+                VStack(alignment: .leading, spacing: theme.contentSpacing) {
+                    DualLimitProgress(
+                        primary: viewModel.snapshot.rateLimits?.primary,
+                        secondary: viewModel.snapshot.rateLimits?.secondary,
+                        primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
+                        secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
+                        pulse: viewModel.refreshPulse,
+                        theme: theme
+                    )
 
-                providerDetailCards
-            }
-            .padding(.horizontal, theme.horizontalPadding)
-            .padding(.top, theme.topPadding)
-            .padding(.bottom, theme.bottomPadding)
+                    providerDetailCards
+                }
 
-            VStack {
-                Spacer()
-                HStack {
+                Spacer(minLength: theme.footerTopSpacing)
+
+                HStack(alignment: .center) {
                     ProviderSwitcherFooter(
                         selectedProvider: viewModel.selectedProvider,
                         theme: theme,
@@ -871,13 +867,14 @@ struct NotchOverlayView: View {
                 }
             }
             .padding(.horizontal, theme.horizontalPadding)
-            .padding(.bottom, 13)
+            .padding(.top, theme.topPadding)
+            .padding(.bottom, theme.bottomPadding)
 
             if let toastMessage = viewModel.toastMessage {
                 VStack {
                     Spacer()
                     ToastPill(text: toastMessage, theme: theme)
-                        .padding(.bottom, 8)
+                        .padding(.bottom, 48)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
