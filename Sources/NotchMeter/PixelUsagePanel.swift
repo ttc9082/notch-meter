@@ -663,12 +663,6 @@ struct NotchOverlayView: View {
         }
         .contextMenu {
             ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
-                Button("Use \(provider.displayName)\(provider == viewModel.selectedProvider ? " (current)" : "")") {
-                    onSelectProvider(provider)
-                }
-            }
-            Divider()
-            ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
                 Button("Sign in with \(provider.displayName)") {
                     onSignIn(provider)
                 }
@@ -799,7 +793,6 @@ struct NotchOverlayView: View {
                 HStack {
                     ProviderSwitcherFooter(
                         selectedProvider: viewModel.selectedProvider,
-                        sourceText: viewModel.snapshot.source?.label ?? "\(viewModel.selectedProvider.compactName) --",
                         theme: theme,
                         onSelectProvider: onSelectProvider
                     )
@@ -954,28 +947,20 @@ private struct NotchActionLabel: View {
 
 private struct ProviderSwitcherFooter: View {
     let selectedProvider: AgentUsageProvider
-    let sourceText: String
     let theme: NotchTheme
     let onSelectProvider: (AgentUsageProvider) -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            HStack(spacing: 8) {
-                ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
-                    ProviderFooterButton(
-                        provider: provider,
-                        isSelected: provider == selectedProvider,
-                        theme: theme
-                    ) {
-                        onSelectProvider(provider)
-                    }
+        HStack(spacing: 8) {
+            ForEach(AgentUsageProvider.allCases, id: \.self) { provider in
+                ProviderFooterButton(
+                    provider: provider,
+                    isSelected: provider == selectedProvider,
+                    theme: theme
+                ) {
+                    onSelectProvider(provider)
                 }
             }
-
-            Text(sourceText)
-                .font(.system(size: 8, weight: .semibold, design: theme.fontDesign))
-                .foregroundStyle(theme.hudMuted.opacity(0.58))
-                .lineLimit(1)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -990,22 +975,24 @@ private struct ProviderFooterButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                HStack(spacing: 4) {
-                    ProviderLogoMark(provider: provider, tint: tint)
-                        .frame(width: 11, height: 11)
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(isSelected ? theme.actionAccent : Color.clear)
+                    .frame(width: 4, height: 4)
 
-                    Text(provider.compactName)
-                        .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
-                        .foregroundStyle(tint)
-                        .lineLimit(1)
-                }
-                .contentShape(Rectangle())
+                ProviderLogoMark(provider: provider, tint: tint)
+                    .frame(width: 11, height: 11)
 
-                Rectangle()
-                    .fill(isSelected ? tint : Color.clear)
-                    .frame(width: 18, height: 1)
+                Text(provider.compactName)
+                    .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
             }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 5)
+            .background(isSelected ? theme.hudMuted.opacity(0.12) : Color.clear)
+            .clipShape(Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
             .opacity(isSelected ? 1 : 0.48)
         }
         .buttonStyle(.plain)
