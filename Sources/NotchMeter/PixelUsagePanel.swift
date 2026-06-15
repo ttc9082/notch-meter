@@ -739,14 +739,14 @@ struct NotchOverlayView: View {
             .padding(.bottom, theme.bottomPadding)
 
             VStack {
-                HStack {
-                    Spacer()
-                    SourceBadge(text: viewModel.snapshot.source?.label ?? "\(viewModel.selectedProvider.compactName) --", theme: theme)
-                }
                 Spacer()
+                HStack {
+                    SourceBadge(text: viewModel.snapshot.source?.label ?? "\(viewModel.selectedProvider.compactName) --", theme: theme)
+                    Spacer()
+                }
             }
-            .padding(.top, 4)
             .padding(.horizontal, theme.horizontalPadding)
+            .padding(.bottom, 2)
 
             if let toastMessage = viewModel.toastMessage {
                 VStack {

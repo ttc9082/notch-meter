@@ -36,7 +36,7 @@ final class CodexOAuthSignInController {
                 let code = try await listener.waitForCode()
                 listener.stop()
                 let credentials = try await exchange(config: config, code: code, verifier: verifier, state: state)
-                try CodexOAuthKeychainStore.shared.save(credentials, provider: provider)
+                try AgentOAuthFileStore.shared.save(credentials, provider: provider)
                 return credentials
             } catch {
                 listener.stop()
@@ -52,7 +52,7 @@ final class CodexOAuthSignInController {
     }
 
     func signOut(provider: AgentUsageProvider) {
-        try? CodexOAuthKeychainStore.shared.delete(provider: provider)
+        try? AgentOAuthFileStore.shared.delete(provider: provider)
     }
 
     private func authorizationURL(config: OAuthProviderConfig, codeChallenge: String, state: String) -> URL? {

@@ -81,8 +81,20 @@ public final class CodexUsageService: @unchecked Sendable {
             do {
                 return try await remoteSnapshot(provider: provider, now: now)
             } catch {
+                if hasRemoteCredentials(provider: provider) {
+                    throw error
+                }
                 return try localSnapshot(provider: provider, now: now)
             }
+        }
+    }
+
+    private func hasRemoteCredentials(provider: AgentUsageProvider) -> Bool {
+        switch provider {
+        case .codex:
+            return codexReader.hasCredentials()
+        case .claude:
+            return claudeReader.hasCredentials()
         }
     }
 
@@ -120,7 +132,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
     public let tokenURL: URL
     public let authFileURL: URL
     private let environmentCredentials: CodexOAuthCredentials?
-    private let keychainStore: CodexOAuthKeychainStore
+    private let credentialStore: AgentOAuthFileStore
 
     public convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -147,7 +159,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             tokenURL: tokenURL,
             authFileURL: authFileURL,
             environmentCredentials: environmentCredentials,
-            keychainStore: .shared
+            credentialStore: .shared
         )
     }
 
@@ -157,13 +169,13 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
         authFileURL: URL = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/auth.json"),
         environmentCredentials: CodexOAuthCredentials? = nil,
-        keychainStore: CodexOAuthKeychainStore = .shared
+        credentialStore: AgentOAuthFileStore = .shared
     ) {
         self.usageURL = usageURL
         self.tokenURL = tokenURL
         self.authFileURL = authFileURL
         self.environmentCredentials = environmentCredentials
-        self.keychainStore = keychainStore
+        self.credentialStore = credentialStore
     }
 
     public func todaySnapshot(now: Date = Date()) async throws -> CodexUsageSnapshot {
@@ -174,6 +186,16 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             credentials = try await refreshCredentials(credentials)
             return try await fetchSnapshot(accessToken: credentials.accessToken)
         }
+    }
+
+    public func hasCredentials() -> Bool {
+        if environmentCredentials != nil {
+            return true
+        }
+        if (try? credentialStore.load(provider: .codex)) != nil {
+            return true
+        }
+        return FileManager.default.fileExists(atPath: authFileURL.path)
     }
 
     private func fetchSnapshot(accessToken: String) async throws -> CodexUsageSnapshot {
@@ -212,8 +234,8 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             return environmentCredentials
         }
 
-        if let keychainCredentials = try keychainStore.load() {
-            return keychainCredentials
+        if let fileCredentials = try credentialStore.load(provider: .codex) {
+            return fileCredentials
         }
 
         let data = try Data(contentsOf: authFileURL)
@@ -269,7 +291,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
         )
 
         if environmentCredentials == nil {
-            try? keychainStore.save(refreshed)
+            try? credentialStore.save(refreshed, provider: .codex)
             try? persistRefreshedTokens(object, fallbackRefreshToken: refreshToken)
         }
 

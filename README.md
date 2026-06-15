@@ -59,7 +59,7 @@ Supported values:
 - `remote`: require remote subscription usage for the selected provider.
 - `local`: only read local Codex session files.
 
-Remote subscription usage signs in with provider-compatible OAuth flows. Right-click the notch HUD to choose the active provider, then sign in to Codex or Claude Code. NotchMeter opens the browser, listens for the local OAuth callback, stores the resulting tokens in macOS Keychain per provider, and refreshes tokens when needed.
+Remote subscription usage signs in with provider-compatible OAuth flows. Right-click the notch HUD to choose the active provider, then sign in to Codex or Claude Code. NotchMeter opens the browser, listens for the local OAuth callback, stores the resulting tokens per provider in `~/.notchmeter/auth.json`, and refreshes tokens when needed.
 
 To force remote mode:
 
@@ -68,7 +68,7 @@ export NOTCHMETER_CODEX_SOURCE=remote
 swift run notch-meter
 ```
 
-For advanced setups, you can pass credentials through the environment instead of Keychain:
+For advanced setups, you can pass credentials through the environment instead of the NotchMeter auth file:
 
 ```sh
 export NOTCHMETER_CODEX_ACCESS_TOKEN="..."
@@ -79,7 +79,7 @@ export NOTCHMETER_CLAUDE_REFRESH_TOKEN="..."
 swift run notch-meter
 ```
 
-The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data. If NotchMeter has no Keychain credentials, it can still fall back to the existing Codex `~/.codex/auth.json` cache.
+The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data. If NotchMeter has no Codex credentials in `~/.notchmeter/auth.json`, it can still fall back to the existing Codex `~/.codex/auth.json` cache.
 
 ## Install From Source
 
@@ -118,7 +118,7 @@ In local mode, NotchMeter only reads local usage files and only extracts numeric
 - `payload.info.last_token_usage`
 - `payload.rate_limits`
 
-In remote provider mode, NotchMeter stores its own OAuth credentials in macOS Keychain, or reads provider credentials from environment variables. Codex can additionally fall back to `~/.codex/auth.json`. It sends authenticated usage requests to each provider's quota endpoint and does not read, store, upload, or display prompt/response text.
+In remote provider mode, NotchMeter stores its own OAuth credentials in `~/.notchmeter/auth.json` with `0600` file permissions, or reads provider credentials from environment variables. If an older NotchMeter build stored credentials in Keychain, the next launch migrates them into the auth file and removes the legacy item. Codex can additionally fall back to `~/.codex/auth.json`. It sends authenticated usage requests to each provider's quota endpoint and does not read, store, upload, or display prompt/response text.
 
 ## Roadmap
 

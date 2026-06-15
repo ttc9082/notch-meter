@@ -6,7 +6,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
     public let usageURL: URL
     public let tokenURL: URL
     private let environmentCredentials: CodexOAuthCredentials?
-    private let keychainStore: CodexOAuthKeychainStore
+    private let credentialStore: AgentOAuthFileStore
 
     public convenience init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let accessToken = environment["NOTCHMETER_CLAUDE_ACCESS_TOKEN"]
@@ -23,7 +23,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
                 .flatMap(URL.init(string:))
                 ?? URL(string: "https://api.anthropic.com/v1/oauth/token")!,
             environmentCredentials: environmentCredentials,
-            keychainStore: .shared
+            credentialStore: .shared
         )
     }
 
@@ -31,12 +31,12 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         usageURL: URL = URL(string: "https://api.anthropic.com/api/oauth/usage")!,
         tokenURL: URL = URL(string: "https://api.anthropic.com/v1/oauth/token")!,
         environmentCredentials: CodexOAuthCredentials? = nil,
-        keychainStore: CodexOAuthKeychainStore = .shared
+        credentialStore: AgentOAuthFileStore = .shared
     ) {
         self.usageURL = usageURL
         self.tokenURL = tokenURL
         self.environmentCredentials = environmentCredentials
-        self.keychainStore = keychainStore
+        self.credentialStore = credentialStore
     }
 
     public func todaySnapshot(now: Date = Date()) async throws -> CodexUsageSnapshot {
@@ -47,6 +47,13 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             credentials = try await refreshCredentials(credentials)
             return try await fetchSnapshot(accessToken: credentials.accessToken)
         }
+    }
+
+    public func hasCredentials() -> Bool {
+        if environmentCredentials != nil {
+            return true
+        }
+        return (try? credentialStore.load(provider: .claude)) != nil
     }
 
     private func fetchSnapshot(accessToken: String) async throws -> CodexUsageSnapshot {
@@ -81,8 +88,8 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         if let environmentCredentials {
             return environmentCredentials
         }
-        if let keychainCredentials = try keychainStore.load(provider: .claude) {
-            return keychainCredentials
+        if let fileCredentials = try credentialStore.load(provider: .claude) {
+            return fileCredentials
         }
         throw CodexRemoteUsageError.missingCredentials
     }
@@ -122,7 +129,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         )
 
         if environmentCredentials == nil {
-            try? keychainStore.save(refreshed, provider: .claude)
+            try? credentialStore.save(refreshed, provider: .claude)
         }
 
         return refreshed
