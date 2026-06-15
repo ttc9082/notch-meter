@@ -1,27 +1,39 @@
 # NotchMeter
 
+[中文说明](README.zh-CN.md)
+
 NotchMeter is a tiny open-source macOS notch HUD for keeping coding-agent and model usage visible without leaving the workspace.
 
-The first provider reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows rate-limit windows plus today's token totals. NotchMeter can also sign in to provider subscription accounts, including Codex and Claude Code, then show remote quota data. The project is intentionally provider-ready so future versions can add other coding agents and models.
+It visually attaches to the MacBook notch, stays compact during normal work, and expands into a quota dashboard on hover. The first supported providers are Codex and Claude Code, with a provider-ready structure for more coding agents and model usage sources later.
 
 ![NotchMeter v1.0 themes](docs/assets/notchmeter-v1.0-themes.png)
-
-Repository: `https://github.com/ttc9082/notch-meter`
 
 ## Status
 
 This is an early prototype:
 
 - macOS menu bar app: working
-- notch-integrated floating pixel HUD: working
-- small microinteractions for refresh, hover, status, and usage bars: working
-- local Codex token/rate-limit provider: working
+- notch-integrated floating HUD: working
+- compact and expanded notch states: working
+- theme switching: working
+- provider switching: working
+- local Codex token and rate-limit provider: working
 - remote Codex subscription provider: experimental
 - remote Claude Code subscription provider: experimental
-- provider switching: working
 - additional coding-agent/model providers: planned
-- NotchNook or other notch-widget host: planned
-- packaged `.app` / `.dmg` release workflow: working
+- signed and notarized app builds: planned
+
+## Run From Source
+
+```sh
+git clone https://github.com/ttc9082/notch-meter.git
+cd notch-meter
+swift run notch-meter
+```
+
+The app appears as a small top-center HUD that visually attaches to the MacBook notch area.
+
+Hover the compact notch HUD to expand the dashboard. The panel shows quota bars, token cards, provider controls, sign-in status, theme switching, and quick `SYNC` controls. Right-click the HUD to quit.
 
 ## Build
 
@@ -29,23 +41,13 @@ This is an early prototype:
 swift build
 ```
 
-## Package DMG
+## Package Locally
 
 ```sh
 scripts/package-dmg.sh
 ```
 
 The packaged app and DMG are written to `dist/`.
-
-## Run
-
-```sh
-swift run notch-meter
-```
-
-The app appears as a small top-center HUD that visually attaches to the MacBook notch area.
-
-Hover the compact notch HUD to expand the dashboard. The panel shows animated quota bars, token cards, themeable visual styles, and quick `SYNC` controls. Right-click the HUD to quit.
 
 ## Data Sources
 
@@ -61,14 +63,7 @@ Supported values:
 - `remote`: require remote subscription usage for the selected provider.
 - `local`: only read local Codex session files.
 
-Remote subscription usage signs in with provider-compatible OAuth flows. Right-click the notch HUD to sign in to Codex or Claude Code. NotchMeter opens the browser, stores the resulting tokens per provider in `~/.notchmeter/auth.json`, and refreshes tokens when needed. Codex uses a local callback. Claude Code uses Anthropic's registered HTTPS callback, so after approval you paste the authorization code back into NotchMeter. Pasting the full callback URL also works.
-
-To force remote mode:
-
-```sh
-export NOTCHMETER_CODEX_SOURCE=remote
-swift run notch-meter
-```
+Remote subscription usage signs in with provider-compatible OAuth flows. NotchMeter opens the browser, stores provider tokens in `~/.notchmeter/auth.json`, and refreshes tokens when needed. Codex uses a local callback. Claude Code uses Anthropic's registered HTTPS callback, so after approval you paste the authorization code back into NotchMeter. Pasting the full callback URL also works.
 
 For advanced setups, you can pass credentials through the environment instead of the NotchMeter auth file:
 
@@ -83,7 +78,7 @@ swift run notch-meter
 
 The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data. If NotchMeter has no Codex credentials in `~/.notchmeter/auth.json`, it can still fall back to the existing Codex `~/.codex/auth.json` cache.
 
-If your network needs a proxy, right-click the notch HUD and choose `Configure Proxy...`. You can also set `NOTCHMETER_PROXY_URL`, or write a config file at `~/.notchmeter/config.json`:
+If your network needs a proxy, configure one in the app or set `NOTCHMETER_PROXY_URL`. You can also write a config file at `~/.notchmeter/config.json`:
 
 ```json
 {
@@ -93,34 +88,13 @@ If your network needs a proxy, right-click the notch HUD and choose `Configure P
 
 HTTP, HTTPS, and SOCKS/SOCKS5 proxy URLs are accepted.
 
-## Install From Source
-
-```sh
-git clone https://github.com/ttc9082/notch-meter.git
-cd notch-meter
-swift run notch-meter
-```
-
-## Publish
-
-Maintainers can create and push the public GitHub repository with either `gh` or `GITHUB_TOKEN`:
-
-```sh
-scripts/publish-github.sh
-```
-
-GitHub Actions runs CI on pushes and pull requests. Pushing a version tag creates a GitHub Release with a downloadable DMG:
-
-```sh
-git tag v1.0
-git push origin v1.0
-```
-
 ## What It Shows
 
-- Current provider rate-limit usage
-- Today's total, input, output, cached input, and reasoning tokens
-- 5-hour and weekly windows when available from remote Codex subscription usage or local Codex events
+- Current provider and sign-in state
+- 5-hour and weekly quota windows when available
+- Today's total, input, output, cached input, and reasoning tokens when available
+- Reset timing near the quota bars
+- Provider-specific details without inventing fields the provider does not return
 
 ## Privacy
 
@@ -134,21 +108,21 @@ In remote provider mode, NotchMeter stores its own OAuth credentials in `~/.notc
 
 ## Roadmap
 
-- Add a proper SwiftUI popover with compact charts
-- Add Claude Code and other provider adapters
-- Add a NotchNook-compatible widget adapter if/when a public widget API is available
-- Add Developer ID signing and notarization for release builds
-- Add settings for custom Codex data directories and refresh intervals
+- Add more coding-agent and model usage providers
+- Add clearer provider-specific dashboards
+- Add settings for custom data directories and refresh intervals
+- Add signed and notarized app builds
+- Add a NotchNook-compatible widget adapter if a public widget API becomes available
 
 ## Contributing
 
 This project is intentionally small. Good first contributions:
 
-- improve parsing for future Codex usage event shapes
+- improve parsing for future usage event shapes
 - add provider adapters for other coding agents and model usage sources
-- add a native popover design
-- document compatibility with notch utilities such as NotchNook
-- package a signed app bundle for releases
+- refine notch layout behavior across MacBook display sizes
+- improve theme design and accessibility
+- package signed app builds
 
 ## License
 
