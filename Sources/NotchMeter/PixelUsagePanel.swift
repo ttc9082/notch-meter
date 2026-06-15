@@ -999,12 +999,15 @@ private enum ProviderLogoAssets {
             name = "claude-symbol"
         }
 
-        guard let url = Bundle.module.url(
-            forResource: name,
-            withExtension: "svg",
-            subdirectory: "ProviderLogos"
-        ),
-        let image = NSImage(contentsOf: url) else {
+        let url = Bundle.module.url(forResource: name, withExtension: "svg")
+            ?? Bundle.module.url(
+                forResource: name,
+                withExtension: "svg",
+                subdirectory: "ProviderLogos"
+            )
+
+        guard let url,
+              let image = NSImage(contentsOf: url) else {
             return nil
         }
 
