@@ -586,6 +586,24 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
+    func signOut(provider: AgentUsageProvider) {
+        do {
+            try AgentOAuthFileStore.shared.delete(provider: provider)
+            reloadAuthStatuses()
+            if selectedProvider == provider {
+                var emptySnapshot = CodexUsageSnapshot.empty
+                emptySnapshot.source = UsageDataSource(provider: provider, mode: .remote)
+                snapshot = emptySnapshot
+                errorMessage = nil
+            }
+            authMessage = "\(provider.displayName) signed out"
+            presentToast("\(provider.displayName) signed out")
+        } catch {
+            authMessage = error.localizedDescription
+            presentToast("Sign-out failed: \(Self.shortError(error))")
+        }
+    }
+
     private func reloadAuthStatuses() {
         var statuses: [AgentUsageProvider: ProviderAuthStatus] = [:]
         for provider in AgentUsageProvider.allCases {
@@ -682,6 +700,7 @@ struct NotchOverlayView: View {
     let onRefresh: () -> Void
     let onSelectProvider: (AgentUsageProvider) -> Void
     let onSignIn: (AgentUsageProvider) -> Void
+    let onSignOut: (AgentUsageProvider) -> Void
     let onConfigureProxy: () -> Void
     let onClearProxy: () -> Void
     let onQuit: () -> Void
@@ -898,10 +917,14 @@ struct NotchOverlayView: View {
                     ProviderAuthFooterControl(
                         provider: viewModel.selectedProvider,
                         status: viewModel.authStatuses[viewModel.selectedProvider] ?? .signedOut,
-                        theme: theme
-                    ) {
-                        onSignIn(viewModel.selectedProvider)
-                    }
+                        theme: theme,
+                        onSignIn: {
+                            onSignIn(viewModel.selectedProvider)
+                        },
+                        onSignOut: {
+                            onSignOut(viewModel.selectedProvider)
+                        }
+                    )
                 }
                 .zIndex(2)
             }
@@ -1131,21 +1154,15 @@ private struct ProviderAuthFooterControl: View {
     let provider: AgentUsageProvider
     let status: ProviderAuthStatus
     let theme: NotchTheme
-    let action: () -> Void
+    let onSignIn: () -> Void
+    let onSignOut: () -> Void
 
     var body: some View {
-        Group {
-            if status.isSignedIn {
-                statusContent
-                    .help("\(provider.displayName) signed in")
-            } else {
-                Button(action: action) {
-                    statusContent
-                }
-                .buttonStyle(.plain)
-                .help("Sign in with \(provider.displayName)")
-            }
+        Button(action: status.isSignedIn ? onSignOut : onSignIn) {
+            statusContent
         }
+        .buttonStyle(.plain)
+        .help(status.isSignedIn ? "Sign out of \(provider.displayName)" : "Sign in with \(provider.displayName)")
     }
 
     private var statusContent: some View {
@@ -1158,9 +1175,9 @@ private struct ProviderAuthFooterControl: View {
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .frame(maxWidth: 86, alignment: .leading)
+                .frame(maxWidth: status.isSignedIn ? 68 : 36, alignment: .trailing)
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, status.isSignedIn ? 7 : 8)
         .padding(.vertical, 5)
         .background(background)
         .clipShape(Capsule(style: .continuous))

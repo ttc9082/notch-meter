@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onRefresh: { [weak self] in self?.manualRefresh() },
                 onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },
                 onSignIn: { [weak self] provider in self?.signIn(provider: provider) },
+                onSignOut: { [weak self] provider in self?.confirmSignOut(provider: provider) },
                 onConfigureProxy: { [weak self] in self?.configureProxy() },
                 onClearProxy: { [weak self] in self?.clearProxy() },
                 onQuit: { NSApp.terminate(nil) },
@@ -56,6 +57,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         viewModel.signIn(provider: provider) { [signInController] provider in
             try await signInController.signIn(provider: provider)
         }
+    }
+
+    private func confirmSignOut(provider: AgentUsageProvider) {
+        let alert = NSAlert()
+        alert.messageText = "Sign out of \(provider.displayName)?"
+        alert.informativeText = "This clears the saved local authorization for \(provider.displayName)."
+        alert.addButton(withTitle: "Sign Out")
+        alert.addButton(withTitle: "Cancel")
+        alert.alertStyle = .warning
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            return
+        }
+        viewModel.signOut(provider: provider)
     }
 
     private func configureProxy() {

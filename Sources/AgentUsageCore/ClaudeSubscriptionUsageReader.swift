@@ -63,6 +63,8 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
     }
 
     public func todaySnapshot(now: Date = Date()) async throws -> CodexUsageSnapshot {
+        var credentials = try loadCredentials()
+
         if let cachedSnapshot,
            let cachedAt,
            now.timeIntervalSince(cachedAt) < cacheTTL {
@@ -75,7 +77,6 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             return cachedSnapshot
         }
 
-        var credentials = try loadCredentials()
         do {
             return try await fetchSnapshot(accessToken: credentials.accessToken, now: now)
         } catch CodexRemoteUsageError.requestFailed(let status) where status == 401 {
