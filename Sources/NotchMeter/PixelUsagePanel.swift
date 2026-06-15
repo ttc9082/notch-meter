@@ -494,6 +494,10 @@ final class UsageViewModel: ObservableObject {
     func selectProvider(_ provider: AgentUsageProvider) {
         selectedProvider = provider
         UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
+        var emptySnapshot = CodexUsageSnapshot.empty
+        emptySnapshot.source = UsageDataSource(provider: provider, mode: .remote)
+        snapshot = emptySnapshot
+        errorMessage = nil
         authMessage = "Using \(provider.displayName)"
         refresh()
     }
@@ -557,6 +561,8 @@ final class UsageViewModel: ObservableObject {
                 return "sign in again"
             case .emptyResponse:
                 return "empty usage"
+            case .localProviderUnavailable:
+                return "sign in"
             }
         }
 
@@ -690,7 +696,8 @@ struct NotchOverlayView: View {
                                 label: "5H",
                                 value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
                                 tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary),
-                                theme: theme
+                                theme: theme,
+                                provider: viewModel.selectedProvider
                             )
                         }
                     }
@@ -719,7 +726,8 @@ struct NotchOverlayView: View {
                                 label: "WK",
                                 value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
                                 tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary),
-                                theme: theme
+                                theme: theme,
+                                provider: nil
                             )
                         }
                     }
@@ -772,7 +780,11 @@ struct NotchOverlayView: View {
             VStack {
                 Spacer()
                 HStack {
-                    SourceBadge(text: viewModel.snapshot.source?.label ?? "\(viewModel.selectedProvider.compactName) --", theme: theme)
+                    SourceBadge(
+                        provider: viewModel.selectedProvider,
+                        text: viewModel.snapshot.source?.label ?? "\(viewModel.selectedProvider.compactName) --",
+                        theme: theme
+                    )
                     Spacer()
                 }
             }
@@ -873,9 +885,15 @@ private struct CompactRemainingLabel: View {
     let value: String
     let tint: Color
     let theme: NotchTheme
+    let provider: AgentUsageProvider?
 
     var body: some View {
         HStack(spacing: 4) {
+            if let provider {
+                ProviderLogoMark(provider: provider, tint: tint)
+                    .frame(width: 11, height: 11)
+                    .padding(.trailing, 1)
+            }
             Text(label)
                 .foregroundStyle(theme.muted)
             Text(value)
@@ -915,23 +933,95 @@ private struct NotchActionLabel: View {
 }
 
 private struct SourceBadge: View {
+    let provider: AgentUsageProvider
     let text: String
     let theme: NotchTheme
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 8, weight: theme.labelWeight, design: theme.fontDesign))
-            .foregroundStyle(theme.hudMuted.opacity(0.58))
-            .lineLimit(1)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(Color.black.opacity(0.72))
-            .overlay(
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .stroke(theme.hudMuted.opacity(0.18), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-            .allowsHitTesting(false)
+        HStack(spacing: 5) {
+            ProviderLogoMark(provider: provider, tint: theme.hudMuted.opacity(0.78))
+                .frame(width: 10, height: 10)
+
+            Text(text)
+                .font(.system(size: 8, weight: theme.labelWeight, design: theme.fontDesign))
+                .foregroundStyle(theme.hudMuted.opacity(0.58))
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.black.opacity(0.72))
+        .overlay(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(theme.hudMuted.opacity(0.18), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .allowsHitTesting(false)
+    }
+}
+
+private struct ProviderLogoMark: View {
+    let provider: AgentUsageProvider
+    let tint: Color
+
+    var body: some View {
+        Group {
+            switch provider {
+            case .codex:
+                OpenAIBlossomMark(tint: tint)
+            case .claude:
+                ClaudeStarMark(tint: tint)
+            }
+        }
+        .accessibilityLabel(provider.displayName)
+    }
+}
+
+private struct OpenAIBlossomMark: View {
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let petalWidth = size * 0.28
+            let petalHeight = size * 0.56
+
+            ZStack {
+                ForEach(0..<6, id: \.self) { index in
+                    Capsule(style: .continuous)
+                        .stroke(tint, lineWidth: max(1.1, size * 0.1))
+                        .frame(width: petalWidth, height: petalHeight)
+                        .offset(y: -size * 0.18)
+                        .rotationEffect(.degrees(Double(index) * 60))
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+}
+
+private struct ClaudeStarMark: View {
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = min(proxy.size.width, proxy.size.height)
+            let armWidth = max(1.4, size * 0.16)
+            let armHeight = size * 0.9
+
+            ZStack {
+                ForEach(0..<4, id: \.self) { index in
+                    Capsule(style: .continuous)
+                        .fill(tint)
+                        .frame(width: armWidth, height: armHeight)
+                        .rotationEffect(.degrees(Double(index) * 45))
+                }
+
+                Circle()
+                    .fill(Color.black.opacity(0.72))
+                    .frame(width: size * 0.22, height: size * 0.22)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
     }
 }
 

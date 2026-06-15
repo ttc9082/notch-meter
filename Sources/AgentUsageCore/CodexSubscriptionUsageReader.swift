@@ -13,6 +13,7 @@ public enum CodexRemoteUsageError: Error, Equatable {
     case refreshFailed(Int)
     case unrecoverableRefresh
     case emptyResponse
+    case localProviderUnavailable(AgentUsageProvider)
 }
 
 extension CodexRemoteUsageError: LocalizedError {
@@ -30,6 +31,8 @@ extension CodexRemoteUsageError: LocalizedError {
             return "Codex refresh token is invalid or expired. Please sign in again."
         case .emptyResponse:
             return "Codex subscription usage returned no quota data."
+        case .localProviderUnavailable(let provider):
+            return "\(provider.displayName) does not have a local usage source yet. Sign in with \(provider.displayName) to use remote quota data."
         }
     }
 }
@@ -81,6 +84,9 @@ public final class CodexUsageService: @unchecked Sendable {
             do {
                 return try await remoteSnapshot(provider: provider, now: now)
             } catch {
+                guard provider == .codex else {
+                    throw error
+                }
                 if hasRemoteCredentials(provider: provider) {
                     throw error
                 }
@@ -99,6 +105,10 @@ public final class CodexUsageService: @unchecked Sendable {
     }
 
     private func localSnapshot(provider: AgentUsageProvider, now: Date) throws -> CodexUsageSnapshot {
+        guard provider == .codex else {
+            throw CodexRemoteUsageError.localProviderUnavailable(provider)
+        }
+
         var snapshot = try localReader.todaySnapshot(now: now)
         snapshot.source = UsageDataSource(provider: provider, mode: .local)
         return snapshot
