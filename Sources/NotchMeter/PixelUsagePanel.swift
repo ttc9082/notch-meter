@@ -479,7 +479,7 @@ final class UsageViewModel: ObservableObject {
                 errorMessage = error.localizedDescription
                 isRefreshing = false
                 if showToast {
-                    presentToast("Sync failed")
+                    presentToast("Sync failed: \(Self.shortError(error))")
                 }
             }
         }
@@ -540,6 +540,28 @@ final class UsageViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private static func shortError(_ error: Error) -> String {
+        if let remoteError = error as? CodexRemoteUsageError {
+            switch remoteError {
+            case .missingCredentials:
+                return "not signed in"
+            case .invalidURL:
+                return "bad URL"
+            case .requestFailed(let status):
+                return "HTTP \(status)"
+            case .refreshFailed(let status):
+                return "refresh HTTP \(status)"
+            case .unrecoverableRefresh:
+                return "sign in again"
+            case .emptyResponse:
+                return "empty usage"
+            }
+        }
+
+        let message = error.localizedDescription
+        return message.count > 30 ? String(message.prefix(27)) + "..." : message
     }
 }
 

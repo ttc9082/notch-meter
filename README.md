@@ -118,7 +118,7 @@ In local mode, NotchMeter only reads local usage files and only extracts numeric
 - `payload.info.last_token_usage`
 - `payload.rate_limits`
 
-In remote provider mode, NotchMeter stores its own OAuth credentials in `~/.notchmeter/auth.json` with `0600` file permissions, or reads provider credentials from environment variables. If an older NotchMeter build stored credentials in Keychain, the next launch migrates them into the auth file and removes the legacy item. Codex can additionally fall back to `~/.codex/auth.json`. It sends authenticated usage requests to each provider's quota endpoint and does not read, store, upload, or display prompt/response text.
+In remote provider mode, NotchMeter stores its own OAuth credentials in `~/.notchmeter/auth.json` with `0600` file permissions, or reads provider credentials from environment variables. Codex can additionally fall back to `~/.codex/auth.json`. It sends authenticated usage requests to each provider's quota endpoint and does not read, store, upload, or display prompt/response text.
 
 ## Roadmap
 

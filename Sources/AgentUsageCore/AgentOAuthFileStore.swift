@@ -1,12 +1,7 @@
 import Foundation
-import Security
 
 public final class AgentOAuthFileStore: @unchecked Sendable {
     public static let shared = AgentOAuthFileStore()
-
-    private let legacyService = "NotchMeter.AgentOAuth"
-    private let legacyCodexService = "NotchMeter.CodexOAuth"
-    private let legacyCodexAccount = "CodexSubscription"
 
     public let fileURL: URL
 
@@ -22,10 +17,7 @@ public final class AgentOAuthFileStore: @unchecked Sendable {
 
     public func load(provider: AgentUsageProvider) throws -> CodexOAuthCredentials? {
         let file = try readFile()
-        if let credentials = file.credentials[provider.rawValue] {
-            return credentials
-        }
-        return try migrateLegacyCredentials(provider: provider)
+        return file.credentials[provider.rawValue]
     }
 
     public func save(_ credentials: CodexOAuthCredentials, provider: AgentUsageProvider) throws {
@@ -68,82 +60,9 @@ public final class AgentOAuthFileStore: @unchecked Sendable {
             ofItemAtPath: fileURL.path
         )
     }
-
-    private func migrateLegacyCredentials(provider: AgentUsageProvider) throws -> CodexOAuthCredentials? {
-        guard let credentials = try loadLegacyCredentials(provider: provider) else {
-            return nil
-        }
-
-        try save(credentials, provider: provider)
-        try? deleteLegacyCredentials(provider: provider)
-        return credentials
-    }
-
-    private func loadLegacyCredentials(provider: AgentUsageProvider) throws -> CodexOAuthCredentials? {
-        let queries = legacyQueries(provider: provider)
-        for query in queries {
-            var lookup = query
-            lookup[kSecReturnData as String] = true
-            lookup[kSecMatchLimit as String] = kSecMatchLimitOne
-
-            var result: CFTypeRef?
-            let status = SecItemCopyMatching(lookup as CFDictionary, &result)
-            if status == errSecItemNotFound {
-                continue
-            }
-            guard status == errSecSuccess, let data = result as? Data else {
-                throw AgentOAuthFileStoreError.legacyKeychainStatus(status)
-            }
-
-            return try JSONDecoder().decode(CodexOAuthCredentials.self, from: data)
-        }
-        return nil
-    }
-
-    private func deleteLegacyCredentials(provider: AgentUsageProvider) throws {
-        for query in legacyQueries(provider: provider) {
-            let status = SecItemDelete(query as CFDictionary)
-            guard status == errSecSuccess || status == errSecItemNotFound else {
-                throw AgentOAuthFileStoreError.legacyKeychainStatus(status)
-            }
-        }
-    }
-
-    private func legacyQueries(provider: AgentUsageProvider) -> [[String: Any]] {
-        var queries: [[String: Any]] = [
-            [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: legacyService,
-                kSecAttrAccount as String: provider.rawValue
-            ]
-        ]
-
-        if provider == .codex {
-            queries.append([
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: legacyCodexService,
-                kSecAttrAccount as String: legacyCodexAccount
-            ])
-        }
-
-        return queries
-    }
 }
 
 private struct AgentOAuthFile: Codable {
     var version = 1
     var credentials: [String: CodexOAuthCredentials] = [:]
-}
-
-public enum AgentOAuthFileStoreError: Error, Equatable {
-    case legacyKeychainStatus(OSStatus)
-}
-
-extension AgentOAuthFileStoreError: LocalizedError {
-    public var errorDescription: String? {
-        switch self {
-        case .legacyKeychainStatus(let status):
-            return "Legacy Keychain migration failed with status \(status)."
-        }
-    }
 }
