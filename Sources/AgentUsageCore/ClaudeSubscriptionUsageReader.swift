@@ -21,7 +21,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
                 ?? URL(string: "https://api.anthropic.com/api/oauth/usage")!,
             tokenURL: environment["NOTCHMETER_CLAUDE_TOKEN_URL"]
                 .flatMap(URL.init(string:))
-                ?? URL(string: "https://api.anthropic.com/v1/oauth/token")!,
+                ?? URL(string: "https://console.anthropic.com/v1/oauth/token")!,
             environmentCredentials: environmentCredentials,
             credentialStore: .shared
         )
@@ -29,7 +29,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
 
     public init(
         usageURL: URL = URL(string: "https://api.anthropic.com/api/oauth/usage")!,
-        tokenURL: URL = URL(string: "https://api.anthropic.com/v1/oauth/token")!,
+        tokenURL: URL = URL(string: "https://console.anthropic.com/v1/oauth/token")!,
         environmentCredentials: CodexOAuthCredentials? = nil,
         credentialStore: AgentOAuthFileStore = .shared
     ) {

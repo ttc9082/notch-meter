@@ -6,7 +6,6 @@ import Network
 
 @MainActor
 final class CodexOAuthSignInController {
-    private let redirectURI = "http://localhost:1455/auth/callback"
     private var pendingTask: Task<CodexOAuthCredentials, Error>?
 
     func signIn(provider: AgentUsageProvider) async throws -> CodexOAuthCredentials {
@@ -19,12 +18,8 @@ final class CodexOAuthSignInController {
             let verifier = PKCE.randomVerifier()
             let challenge = PKCE.challenge(for: verifier)
             let state = PKCE.randomVerifier(length: 32)
-            let listener = OAuthCallbackListener(expectedState: state)
-
-            try await listener.start()
 
             guard let authURL = authorizationURL(config: config, codeChallenge: challenge, state: state) else {
-                listener.stop()
                 throw CodexRemoteUsageError.invalidURL
             }
 
@@ -32,15 +27,30 @@ final class CodexOAuthSignInController {
                 _ = NSWorkspace.shared.open(authURL)
             }
 
-            do {
-                let code = try await listener.waitForCode()
-                listener.stop()
-                let credentials = try await exchange(config: config, code: code, verifier: verifier, state: state)
+            switch config.callback {
+            case .loopback(let port, let path):
+                let listener = OAuthCallbackListener(expectedState: state, port: port, path: path)
+                try await listener.start()
+                do {
+                    let code = try await listener.waitForCode()
+                    listener.stop()
+                    let credentials = try await exchange(config: config, code: code, verifier: verifier, state: state)
+                    try AgentOAuthFileStore.shared.save(credentials, provider: provider)
+                    return credentials
+                } catch {
+                    listener.stop()
+                    throw error
+                }
+            case .manualCode:
+                let authorizationCode = try requestManualAuthorizationCode(provider: provider)
+                let credentials = try await exchange(
+                    config: config,
+                    code: authorizationCode.code,
+                    verifier: verifier,
+                    state: authorizationCode.state ?? state
+                )
                 try AgentOAuthFileStore.shared.save(credentials, provider: provider)
                 return credentials
-            } catch {
-                listener.stop()
-                throw error
             }
         }
 
@@ -55,12 +65,31 @@ final class CodexOAuthSignInController {
         try? AgentOAuthFileStore.shared.delete(provider: provider)
     }
 
+    private func requestManualAuthorizationCode(provider: AgentUsageProvider) throws -> OAuthAuthorizationCode {
+        let alert = NSAlert()
+        alert.messageText = "\(provider.displayName) Authorization"
+        alert.informativeText = "After approving in the browser, copy the callback URL or authorization code from the page/address bar and paste it here."
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 420, height: 24))
+        input.placeholderString = "https://platform.claude.com/oauth/code/callback?code=..."
+        alert.accessoryView = input
+
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            throw CodexRemoteUsageError.missingCredentials
+        }
+
+        return try OAuthAuthorizationCode(input.stringValue)
+    }
+
     private func authorizationURL(config: OAuthProviderConfig, codeChallenge: String, state: String) -> URL? {
         var components = URLComponents(url: config.authorizeURL, resolvingAgainstBaseURL: false)
         var queryItems = [
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "client_id", value: config.clientID),
-            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "redirect_uri", value: config.redirectURI),
             URLQueryItem(name: "scope", value: config.scope),
             URLQueryItem(name: "code_challenge", value: codeChallenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
@@ -87,7 +116,7 @@ final class CodexOAuthSignInController {
                 "grant_type": "authorization_code",
                 "client_id": config.clientID,
                 "code": code,
-                "redirect_uri": redirectURI,
+                "redirect_uri": config.redirectURI,
                 "code_verifier": verifier
             ])
         case .json:
@@ -97,7 +126,7 @@ final class CodexOAuthSignInController {
                 "client_id": config.clientID,
                 "code": code,
                 "state": state,
-                "redirect_uri": redirectURI,
+                "redirect_uri": config.redirectURI,
                 "code_verifier": verifier
             ])
         }
@@ -151,7 +180,46 @@ final class CodexOAuthSignInController {
     }
 }
 
+private struct OAuthAuthorizationCode {
+    let code: String
+    let state: String?
+
+    init(_ pastedValue: String) throws {
+        let trimmed = pastedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CodexRemoteUsageError.missingCredentials
+        }
+
+        if let components = URLComponents(string: trimmed),
+           let code = components.queryItems?.first(where: { $0.name == "code" })?.value,
+           !code.isEmpty {
+            self.code = code
+            self.state = Self.state(from: components)
+            return
+        }
+
+        let parts = trimmed.split(separator: "#", maxSplits: 1).map(String.init)
+        self.code = parts[0]
+        self.state = parts.count > 1 ? parts[1] : nil
+    }
+
+    private static func state(from components: URLComponents) -> String? {
+        if let state = components.queryItems?.first(where: { $0.name == "state" })?.value {
+            return state
+        }
+        if let fragment = components.fragment, !fragment.isEmpty {
+            return fragment
+        }
+        return nil
+    }
+}
+
 private struct OAuthProviderConfig {
+    enum Callback {
+        case loopback(port: UInt16, path: String)
+        case manualCode
+    }
+
     enum TokenBody {
         case form
         case json
@@ -161,9 +229,11 @@ private struct OAuthProviderConfig {
     let clientID: String
     let authorizeURL: URL
     let tokenURL: URL
+    let redirectURI: String
     let scope: String
     let extraQueryItems: [URLQueryItem]
     let tokenBody: TokenBody
+    let callback: Callback
 
     init(provider: AgentUsageProvider) {
         self.provider = provider
@@ -172,6 +242,7 @@ private struct OAuthProviderConfig {
             clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
             authorizeURL = URL(string: "https://auth.openai.com/oauth/authorize")!
             tokenURL = URL(string: "https://auth.openai.com/oauth/token")!
+            redirectURI = "http://localhost:1455/auth/callback"
             scope = "openid profile email offline_access"
             extraQueryItems = [
                 URLQueryItem(name: "id_token_add_organizations", value: "true"),
@@ -179,28 +250,40 @@ private struct OAuthProviderConfig {
                 URLQueryItem(name: "originator", value: "codex_cli_rs")
             ]
             tokenBody = .form
+            callback = .loopback(port: 1455, path: "/auth/callback")
         case .claude:
             clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
             authorizeURL = URL(string: "https://claude.ai/oauth/authorize")!
-            tokenURL = URL(string: "https://api.anthropic.com/v1/oauth/token")!
-            scope = "org:create_api_key user:profile user:inference"
-            extraQueryItems = []
+            tokenURL = URL(string: "https://console.anthropic.com/v1/oauth/token")!
+            redirectURI = "https://platform.claude.com/oauth/code/callback"
+            scope = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers"
+            extraQueryItems = [
+                URLQueryItem(name: "code", value: "true")
+            ]
             tokenBody = .json
+            callback = .manualCode
         }
     }
 }
 
 private final class OAuthCallbackListener: @unchecked Sendable {
     private let expectedState: String
+    private let port: UInt16
+    private let path: String
     private var listener: NWListener?
     private var continuation: CheckedContinuation<String, Error>?
 
-    init(expectedState: String) {
+    init(expectedState: String, port: UInt16, path: String) {
         self.expectedState = expectedState
+        self.port = port
+        self.path = path
     }
 
     func start() async throws {
-        let listener = try NWListener(using: .tcp, on: 1455)
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
+            throw CodexRemoteUsageError.invalidURL
+        }
+        let listener = try NWListener(using: .tcp, on: nwPort)
         listener.newConnectionHandler = { [weak self] connection in
             self?.handle(connection)
         }
@@ -247,7 +330,7 @@ private final class OAuthCallbackListener: @unchecked Sendable {
             let parts = firstLine.split(separator: " ")
             guard parts.count >= 2,
                   let url = URL(string: "http://127.0.0.1\(parts[1])"),
-                  url.path == "/auth/callback",
+                  url.path == path,
                   let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
                 self.send("Invalid OAuth callback path.", status: "404 Not Found", on: connection)
                 return
