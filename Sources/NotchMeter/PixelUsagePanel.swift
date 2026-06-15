@@ -430,11 +430,11 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
-    func expandedDeckHeight(for provider: AgentUsageProvider) -> CGFloat {
+    func expandedDeckHeight(for provider: AgentUsageProvider, hasClaudeExtraUsage: Bool) -> CGFloat {
         topPadding
             + progressBlockHeight
             + contentSpacing
-            + detailCardsHeight(for: provider)
+            + detailCardsHeight(for: provider, hasClaudeExtraUsage: hasClaudeExtraUsage)
             + footerTopSpacing
             + footerHeight
             + bottomPadding
@@ -448,12 +448,16 @@ private enum NotchTheme: CaseIterable {
         34
     }
 
-    private func detailCardsHeight(for provider: AgentUsageProvider) -> CGFloat {
+    private func detailCardsHeight(for provider: AgentUsageProvider, hasClaudeExtraUsage: Bool) -> CGFloat {
         switch provider {
         case .codex:
             return cardHeight * 2 + gridSpacing
         case .claude:
-            return cardHeight * 2 + gridSpacing * 2 + extraUsageRowHeight
+            let cardGridHeight = cardHeight * 2 + gridSpacing
+            guard hasClaudeExtraUsage else {
+                return cardGridHeight
+            }
+            return cardGridHeight + gridSpacing + extraUsageRowHeight
         }
     }
 
@@ -692,7 +696,10 @@ struct NotchOverlayView: View {
     }
 
     private var detailDeckHeight: CGFloat {
-        theme.expandedDeckHeight(for: viewModel.selectedProvider)
+        theme.expandedDeckHeight(
+            for: viewModel.selectedProvider,
+            hasClaudeExtraUsage: viewModel.snapshot.claudeDetails?.extraUsage != nil
+        )
     }
 
     var body: some View {
