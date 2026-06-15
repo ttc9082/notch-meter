@@ -968,12 +968,6 @@ private struct SourceBadge: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(Color.black.opacity(0.72))
-        .overlay(
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .stroke(theme.hudMuted.opacity(0.18), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
         .allowsHitTesting(false)
     }
 }
