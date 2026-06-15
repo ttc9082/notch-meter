@@ -38,12 +38,51 @@ public struct RateLimitStatus: Equatable, Sendable {
     public var planType: String?
 }
 
+public struct ClaudeUsageDetails: Equatable, Sendable {
+    public var sonnetSevenDay: RateLimitWindow?
+    public var extraUsage: ClaudeExtraUsage?
+
+    public init(
+        sonnetSevenDay: RateLimitWindow? = nil,
+        extraUsage: ClaudeExtraUsage? = nil
+    ) {
+        self.sonnetSevenDay = sonnetSevenDay
+        self.extraUsage = extraUsage
+    }
+}
+
+public struct ClaudeExtraUsage: Equatable, Sendable {
+    public var isEnabled: Bool
+    public var monthlyLimit: Double?
+    public var usedCredits: Double?
+    public var utilization: Double?
+    public var currency: String?
+    public var disabledReason: String?
+
+    public init(
+        isEnabled: Bool,
+        monthlyLimit: Double? = nil,
+        usedCredits: Double? = nil,
+        utilization: Double? = nil,
+        currency: String? = nil,
+        disabledReason: String? = nil
+    ) {
+        self.isEnabled = isEnabled
+        self.monthlyLimit = monthlyLimit
+        self.usedCredits = usedCredits
+        self.utilization = utilization
+        self.currency = currency
+        self.disabledReason = disabledReason
+    }
+}
+
 public struct CodexUsageSnapshot: Equatable, Sendable {
     public var scannedFiles: Int
     public var sessionsWithUsage: Int
     public var totalUsage: TokenUsage
     public var lastUsage: TokenUsage?
     public var rateLimits: RateLimitStatus?
+    public var claudeDetails: ClaudeUsageDetails?
     public var newestEventDate: Date?
     public var source: UsageDataSource?
 
@@ -53,6 +92,7 @@ public struct CodexUsageSnapshot: Equatable, Sendable {
         totalUsage: .zero,
         lastUsage: nil,
         rateLimits: nil,
+        claudeDetails: nil,
         newestEventDate: nil,
         source: nil
     )

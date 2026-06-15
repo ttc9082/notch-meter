@@ -235,6 +235,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             totalUsage: CodexSubscriptionUsageParser.tokenUsage(from: object),
             lastUsage: nil,
             rateLimits: rateLimits,
+            claudeDetails: nil,
             newestEventDate: Date()
         )
     }

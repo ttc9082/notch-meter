@@ -425,7 +425,11 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
-    var expandedDeckHeight: CGFloat {
+    func expandedDeckHeight(for provider: AgentUsageProvider) -> CGFloat {
+        baseExpandedDeckHeight + providerDeckAdjustment(for: provider)
+    }
+
+    private var baseExpandedDeckHeight: CGFloat {
         switch self {
         case .pixel:
             return 300
@@ -439,6 +443,22 @@ private enum NotchTheme: CaseIterable {
             return 268
         case .longTable:
             return 312
+        }
+    }
+
+    private func providerDeckAdjustment(for provider: AgentUsageProvider) -> CGFloat {
+        switch provider {
+        case .codex:
+            return 0
+        case .claude:
+            switch self {
+            case .swiss, .cobalt:
+                return 18
+            case .bauhaus:
+                return 12
+            default:
+                return 8
+            }
         }
     }
 }
@@ -662,7 +682,11 @@ struct NotchOverlayView: View {
     }
 
     private var visibleHeight: CGFloat {
-        metrics.menuBarHeight + theme.expandedDeckHeight * expansionProgress
+        metrics.menuBarHeight + detailDeckHeight * expansionProgress
+    }
+
+    private var detailDeckHeight: CGFloat {
+        theme.expandedDeckHeight(for: viewModel.selectedProvider)
     }
 
     var body: some View {
@@ -679,7 +703,7 @@ struct NotchOverlayView: View {
 
                 expandedDeck
                     .opacity(expanded ? 1 : 0)
-                    .frame(height: theme.expandedDeckHeight * expansionProgress, alignment: .top)
+                    .frame(height: detailDeckHeight * expansionProgress, alignment: .top)
                     .clipped()
                     .allowsHitTesting(expanded)
                     .animation(expansionAnimation, value: expanded)
@@ -696,6 +720,7 @@ struct NotchOverlayView: View {
         .clipShape(TopAnchoredNotchMask(height: visibleHeight))
         .contentShape(TopAnchoredNotchMask(height: visibleHeight))
         .animation(expansionAnimation, value: theme)
+        .animation(expansionAnimation, value: viewModel.selectedProvider)
         .background(Color.clear)
         .onHover { inside in
             guard !inside else {
@@ -821,12 +846,7 @@ struct NotchOverlayView: View {
                     theme: theme
                 )
 
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
-                    PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: theme.accentA, theme: theme)
-                    PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: theme.accentB, theme: theme)
-                    PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: theme.accentC, theme: theme)
-                    PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: theme.accentD, theme: theme)
-                }
+                providerDetailCards
             }
             .padding(.horizontal, theme.horizontalPadding)
             .padding(.top, theme.topPadding)
@@ -862,7 +882,27 @@ struct NotchOverlayView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .frame(width: metrics.totalWidth, height: theme.expandedDeckHeight)
+        .frame(width: metrics.totalWidth, height: detailDeckHeight)
+    }
+
+    @ViewBuilder
+    private var providerDetailCards: some View {
+        switch viewModel.selectedProvider {
+        case .codex:
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
+                PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: theme.accentA, theme: theme)
+                PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: theme.accentB, theme: theme)
+                PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: theme.accentC, theme: theme)
+                PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: theme.accentD, theme: theme)
+            }
+        case .claude:
+            ClaudeDetailCards(
+                primary: viewModel.snapshot.rateLimits?.primary,
+                secondary: viewModel.snapshot.rateLimits?.secondary,
+                details: viewModel.snapshot.claudeDetails,
+                theme: theme
+            )
+        }
     }
 
     private func toggleExpanded() {
@@ -1198,6 +1238,132 @@ private struct ToastPill: View {
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 3)
             .allowsHitTesting(false)
+    }
+}
+
+private struct ClaudeDetailCards: View {
+    let primary: RateLimitWindow?
+    let secondary: RateLimitWindow?
+    let details: ClaudeUsageDetails?
+    let theme: NotchTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: theme.gridSpacing) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
+                PixelMetricCard(label: "5H USED", value: usedPercent(primary), tint: color(for: primary), theme: theme)
+                PixelMetricCard(label: "7D USED", value: usedPercent(secondary), tint: color(for: secondary), theme: theme)
+                PixelMetricCard(label: "SONNET", value: usedPercent(details?.sonnetSevenDay), tint: color(for: details?.sonnetSevenDay), theme: theme)
+                PixelMetricCard(label: "EXTRA", value: extraUsageValue, tint: extraUsageTint, theme: theme)
+            }
+
+            if let extraUsage = details?.extraUsage {
+                ClaudeExtraUsageRow(extraUsage: extraUsage, theme: theme)
+            }
+        }
+    }
+
+    private var extraUsageValue: String {
+        guard let extraUsage = details?.extraUsage else {
+            return "--"
+        }
+        if let utilization = extraUsage.utilization {
+            return "\(Int(utilization.rounded()))%"
+        }
+        return extraUsage.isEnabled ? "ON" : "OFF"
+    }
+
+    private var extraUsageTint: Color {
+        guard let extraUsage = details?.extraUsage else {
+            return theme.muted
+        }
+        if let utilization = extraUsage.utilization {
+            if utilization >= 80 {
+                return theme.accentD
+            }
+            if utilization >= 50 {
+                return theme.accentC
+            }
+        }
+        return extraUsage.isEnabled ? theme.accentA : theme.muted
+    }
+
+    private func usedPercent(_ window: RateLimitWindow?) -> String {
+        guard let window else {
+            return "--"
+        }
+        return "\(Int(window.usedPercent.rounded()))%"
+    }
+
+    private func color(for window: RateLimitWindow?) -> Color {
+        guard let window else {
+            return theme.muted
+        }
+        let remaining = max(0, min(100, 100 - window.usedPercent))
+        if remaining <= 15 {
+            return theme.accentD
+        }
+        if remaining <= 40 {
+            return theme.accentC
+        }
+        return theme.accentA
+    }
+}
+
+private struct ClaudeExtraUsageRow: View {
+    let extraUsage: ClaudeExtraUsage
+    let theme: NotchTheme
+
+    var body: some View {
+        HStack(spacing: 8) {
+            extraStat("STATUS", extraUsage.isEnabled ? "ENABLED" : "DISABLED", tint)
+            extraStat("USED", usedCreditsText, theme.hudInk)
+            extraStat("LIMIT", monthlyLimitText, theme.hudMuted)
+        }
+        .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
+        .padding(.horizontal, theme == .cobalt ? 12 : 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.panel.opacity(0.72))
+        .overlay(
+            RoundedRectangle(cornerRadius: theme.cardCorner, style: .continuous)
+                .stroke(theme.edge.opacity(0.8), lineWidth: theme.cardBorderWidth)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: theme.cardCorner, style: .continuous))
+    }
+
+    private var tint: Color {
+        extraUsage.isEnabled ? theme.accentA : theme.muted
+    }
+
+    private var usedCreditsText: String {
+        creditText(extraUsage.usedCredits, currency: extraUsage.currency)
+    }
+
+    private var monthlyLimitText: String {
+        creditText(extraUsage.monthlyLimit, currency: extraUsage.currency)
+    }
+
+    private func extraStat(_ label: String, _ value: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .foregroundStyle(theme.muted)
+            Text(value)
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func creditText(_ value: Double?, currency: String?) -> String {
+        guard let value else {
+            return "--"
+        }
+        let number = value == floor(value) ? String(format: "%.0f", value) : String(format: "%.2f", value)
+        if let currency, !currency.isEmpty {
+            return "\(number) \(currency.uppercased())"
+        }
+        return number
     }
 }
 

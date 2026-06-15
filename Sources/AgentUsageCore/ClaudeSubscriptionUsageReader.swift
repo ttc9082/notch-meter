@@ -80,6 +80,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             totalUsage: .zero,
             lastUsage: nil,
             rateLimits: rateLimits,
+            claudeDetails: ClaudeUsageParser.details(from: object),
             newestEventDate: Date()
         )
     }
@@ -150,6 +151,15 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
 }
 
 private enum ClaudeUsageParser {
+    static func details(from object: [String: Any]) -> ClaudeUsageDetails {
+        ClaudeUsageDetails(
+            sonnetSevenDay: (object["seven_day_sonnet"] as? [String: Any]).map {
+                window(from: $0, fallbackMinutes: 10_080)
+            },
+            extraUsage: (object["extra_usage"] as? [String: Any]).map(extraUsage(from:))
+        )
+    }
+
     static func rateLimits(from object: [String: Any]) -> RateLimitStatus? {
         let primary = (object["five_hour"] as? [String: Any]).map {
             window(from: $0, fallbackMinutes: 300)
@@ -166,6 +176,17 @@ private enum ClaudeUsageParser {
             primary: primary,
             secondary: secondary,
             planType: "Claude Code"
+        )
+    }
+
+    private static func extraUsage(from object: [String: Any]) -> ClaudeExtraUsage {
+        ClaudeExtraUsage(
+            isEnabled: boolValue(object["is_enabled"]),
+            monthlyLimit: optionalDoubleValue(object["monthly_limit"]),
+            usedCredits: optionalDoubleValue(object["used_credits"]),
+            utilization: optionalDoubleValue(object["utilization"]).map { max(0, min(100, $0)) },
+            currency: object["currency"] as? String,
+            disabledReason: object["disabled_reason"] as? String
         )
     }
 
@@ -205,5 +226,31 @@ private enum ClaudeUsageParser {
             return double
         }
         return 0
+    }
+
+    private static func optionalDoubleValue(_ value: Any?) -> Double? {
+        if let double = value as? Double {
+            return double
+        }
+        if let int = value as? Int {
+            return Double(int)
+        }
+        if let string = value as? String, let double = Double(string) {
+            return double
+        }
+        return nil
+    }
+
+    private static func boolValue(_ value: Any?) -> Bool {
+        if let bool = value as? Bool {
+            return bool
+        }
+        if let int = value as? Int {
+            return int != 0
+        }
+        if let string = value as? String {
+            return ["true", "1", "yes", "enabled"].contains(string.lowercased())
+        }
+        return false
     }
 }
