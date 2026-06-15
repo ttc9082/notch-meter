@@ -792,7 +792,10 @@ struct NotchOverlayView: View {
     }
 
     private var visibleHeight: CGFloat {
-        metrics.menuBarHeight + detailDeckHeight * expansionProgress
+        max(
+            metrics.menuBarHeight + detailDeckHeight * expansionProgress,
+            modalVisibleHeight
+        )
     }
 
     private var detailDeckHeight: CGFloat {
@@ -816,6 +819,23 @@ struct NotchOverlayView: View {
             details.coworkSevenDay
         ].filter { $0 != nil }.count
             + (details.extraUsage == nil ? 0 : 1)
+    }
+
+    private var modalVisibleHeight: CGFloat {
+        guard activeModal != nil || oauthCodeBroker.request != nil else {
+            return 0
+        }
+
+        let modalHeight: CGFloat
+        if oauthCodeBroker.request != nil {
+            modalHeight = 204
+        } else if activeModal == .proxy {
+            modalHeight = 196
+        } else {
+            modalHeight = 156
+        }
+
+        return metrics.menuBarHeight + 18 + modalHeight + 18
     }
 
     var body: some View {
