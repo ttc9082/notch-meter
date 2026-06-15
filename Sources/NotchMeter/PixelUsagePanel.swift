@@ -491,6 +491,7 @@ final class UsageViewModel: ObservableObject {
     @Published var isRefreshing = false
     @Published var toastMessage: String?
     @Published var authStatuses: [AgentUsageProvider: ProviderAuthStatus] = [:]
+    @Published var signingInProvider: AgentUsageProvider?
     @Published var selectedProvider: AgentUsageProvider = UserDefaults.standard.string(forKey: "selectedProvider")
         .flatMap(AgentUsageProvider.init(rawValue:)) ?? .codex
 
@@ -563,6 +564,8 @@ final class UsageViewModel: ObservableObject {
         _ action: @escaping (AgentUsageProvider) async throws -> CodexOAuthCredentials
     ) {
         authMessage = "Opening \(provider.displayName) sign-in..."
+        signingInProvider = provider
+        presentToast("Signing in \(provider.compactName)...")
         signInTask?.cancel()
         signInTask = Task {
             do {
@@ -574,12 +577,14 @@ final class UsageViewModel: ObservableObject {
                 UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
                 reloadAuthStatuses()
                 authMessage = "\(provider.displayName) sign-in complete"
+                signingInProvider = nil
                 presentToast("\(provider.displayName) signed in")
-                refresh(showToast: true)
+                refresh()
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
+                signingInProvider = nil
                 authMessage = error.localizedDescription
                 presentToast("Sign-in failed: \(Self.shortError(error))")
             }
@@ -1036,6 +1041,7 @@ struct NotchOverlayView: View {
                     ProviderAuthFooterControl(
                         provider: viewModel.selectedProvider,
                         status: viewModel.authStatuses[viewModel.selectedProvider] ?? .signedOut,
+                        isSigningIn: viewModel.signingInProvider == viewModel.selectedProvider,
                         theme: theme,
                         onSignIn: {
                             onSignIn(viewModel.selectedProvider)
@@ -1188,6 +1194,7 @@ struct NotchOverlayView: View {
                     NotchOAuthCodeModal(
                         provider: request.provider,
                         draft: $oauthCodeDraft,
+                        isSigningIn: viewModel.signingInProvider == request.provider,
                         theme: theme,
                         onSubmit: submitOAuthCode,
                         onCancel: cancelOAuthCode
@@ -1378,6 +1385,7 @@ private struct ProviderFooterButton: View {
 private struct ProviderAuthFooterControl: View {
     let provider: AgentUsageProvider
     let status: ProviderAuthStatus
+    let isSigningIn: Bool
     let theme: NotchTheme
     let onSignIn: () -> Void
     let onSignOut: () -> Void
@@ -1387,6 +1395,7 @@ private struct ProviderAuthFooterControl: View {
             statusContent
         }
         .buttonStyle(.plain)
+        .disabled(isSigningIn)
         .help(status.isSignedIn ? "Sign out of \(provider.displayName)" : "Sign in with \(provider.displayName)")
     }
 
@@ -1412,14 +1421,17 @@ private struct ProviderAuthFooterControl: View {
     private var shortLabel: String {
         switch status {
         case .signedOut:
-            return "LOGIN"
+            return isSigningIn ? "AUTH..." : "LOGIN"
         case .signedIn(let label):
             return label == "SIGNED IN" ? "SIGNED IN" : label
         }
     }
 
     private var tint: Color {
-        status.isSignedIn ? theme.hudMuted.opacity(0.72) : theme.actionAccent
+        if isSigningIn {
+            return theme.accentB
+        }
+        return status.isSignedIn ? theme.hudMuted.opacity(0.72) : theme.actionAccent
     }
 
     private var background: Color {
@@ -1599,10 +1611,10 @@ private struct NotchProxyModal: View {
 private struct NotchOAuthCodeModal: View {
     let provider: AgentUsageProvider
     @Binding var draft: String
+    let isSigningIn: Bool
     let theme: NotchTheme
     let onSubmit: () -> Void
     let onCancel: () -> Void
-    @FocusState private var inputFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1612,30 +1624,113 @@ private struct NotchOAuthCodeModal: View {
                 theme: theme
             )
 
-            TextField("Paste authorization code", text: $draft)
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, weight: theme.labelWeight, design: .monospaced))
-                .foregroundStyle(theme.hudInk)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(theme.panel.opacity(0.78))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(theme.edge.opacity(0.85), lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .onSubmit(onSubmit)
-                .focused($inputFocused)
-                .onAppear {
-                    inputFocused = true
-                }
+            PasteFriendlyCodeField(
+                text: $draft,
+                placeholder: "Paste authorization code",
+                theme: theme,
+                onSubmit: onSubmit
+            )
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(theme.panel.opacity(0.78))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(theme.edge.opacity(0.85), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .disabled(isSigningIn)
 
             HStack(spacing: 8) {
                 Spacer()
                 NotchModalButton(title: "CANCEL", tint: theme.hudMuted, theme: theme, action: onCancel)
-                NotchModalButton(title: "CONTINUE", tint: theme.actionAccent, theme: theme, action: onSubmit)
+                NotchModalButton(
+                    title: isSigningIn ? "AUTH..." : "CONTINUE",
+                    tint: isSigningIn ? theme.accentB : theme.actionAccent,
+                    theme: theme,
+                    action: onSubmit
+                )
+                .disabled(isSigningIn)
             }
         }
+    }
+}
+
+private struct PasteFriendlyCodeField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let theme: NotchTheme
+    let onSubmit: () -> Void
+
+    func makeNSView(context: Context) -> PasteFriendlyNSTextField {
+        let field = PasteFriendlyNSTextField()
+        field.delegate = context.coordinator
+        field.isBordered = false
+        field.isBezeled = false
+        field.drawsBackground = false
+        field.focusRingType = .none
+        field.placeholderString = placeholder
+        field.lineBreakMode = .byTruncatingMiddle
+        field.cell?.sendsActionOnEndEditing = true
+        DispatchQueue.main.async {
+            field.window?.makeFirstResponder(field)
+        }
+        return field
+    }
+
+    func updateNSView(_ field: PasteFriendlyNSTextField, context: Context) {
+        if field.stringValue != text {
+            field.stringValue = text
+        }
+        field.placeholderString = placeholder
+        field.textColor = NSColor(theme.hudInk)
+        field.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text, onSubmit: onSubmit)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        @Binding var text: String
+        let onSubmit: () -> Void
+
+        init(text: Binding<String>, onSubmit: @escaping () -> Void) {
+            _text = text
+            self.onSubmit = onSubmit
+        }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSTextField else {
+                return
+            }
+            text = field.stringValue
+        }
+
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+                text = textView.string
+                onSubmit()
+                return true
+            }
+            return false
+        }
+    }
+}
+
+private final class PasteFriendlyNSTextField: NSTextField {
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let key = event.charactersIgnoringModifiers?.lowercased()
+        if flags.contains(.command), key == "v" {
+            if let editor = currentEditor() {
+                editor.paste(nil)
+            } else if let paste = NSPasteboard.general.string(forType: .string) {
+                stringValue = paste
+                sendAction(action, to: target)
+            }
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }
 
