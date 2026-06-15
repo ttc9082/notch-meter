@@ -68,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert.alertStyle = .warning
 
         NSApp.activate(ignoringOtherApps: true)
-        let response = overlay.runModalWithoutCoveringOverlay {
+        let response = overlay.runModalWithCollapsedOverlay {
             alert.runModal()
         }
         guard response == .alertFirstButtonReturn else {
@@ -167,11 +167,15 @@ final class NotchOverlayController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
-    func runModalWithoutCoveringOverlay<T>(_ body: () -> T) -> T {
-        panel?.orderOut(nil)
+    func runModalWithCollapsedOverlay<T>(_ body: () -> T) -> T {
+        let wasExpanded = isExpanded
+        collapseWorkItem?.cancel()
+        isExpanded = false
+        position(size: metrics.compactSize)
         defer {
             if let panel {
-                position(size: isExpanded ? metrics.expandedSize : metrics.compactSize)
+                isExpanded = wasExpanded
+                position(size: wasExpanded ? metrics.expandedSize : metrics.compactSize)
                 panel.orderFrontRegardless()
             }
         }
