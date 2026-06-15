@@ -292,16 +292,23 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
-    var bottomPadding: CGFloat { 13 }
+    var bottomPadding: CGFloat {
+        switch self {
+        case .swiss, .cobalt:
+            return 18
+        default:
+            return 20
+        }
+    }
 
     var footerTopSpacing: CGFloat {
         switch self {
         case .swiss, .cobalt:
-            return 10
-        case .bauhaus:
-            return 12
-        default:
             return 14
+        case .bauhaus:
+            return 15
+        default:
+            return 16
         }
     }
 
@@ -437,8 +444,8 @@ private enum NotchTheme: CaseIterable {
         progressHeight * 2 + 43
     }
 
-    private var footerHeight: CGFloat {
-        25
+    var footerHeight: CGFloat {
+        34
     }
 
     private func detailCardsHeight(for provider: AgentUsageProvider) -> CGFloat {
@@ -835,7 +842,7 @@ struct NotchOverlayView: View {
         ZStack(alignment: .top) {
             PixelPalette.notch
 
-            VStack(alignment: .leading, spacing: theme.contentSpacing) {
+            VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: theme.contentSpacing) {
                     DualLimitProgress(
                         primary: viewModel.snapshot.rateLimits?.primary,
@@ -848,8 +855,6 @@ struct NotchOverlayView: View {
 
                     providerDetailCards
                 }
-
-                Spacer(minLength: theme.footerTopSpacing)
 
                 HStack(alignment: .center) {
                     ProviderSwitcherFooter(
@@ -866,6 +871,9 @@ struct NotchOverlayView: View {
                         onSignIn(viewModel.selectedProvider)
                     }
                 }
+                .frame(height: theme.footerHeight, alignment: .center)
+                .padding(.top, theme.footerTopSpacing)
+                .zIndex(2)
             }
             .padding(.horizontal, theme.horizontalPadding)
             .padding(.top, theme.topPadding)
@@ -877,6 +885,7 @@ struct NotchOverlayView: View {
                     ToastPill(text: toastMessage, theme: theme)
                         .padding(.bottom, 48)
                 }
+                .allowsHitTesting(false)
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
