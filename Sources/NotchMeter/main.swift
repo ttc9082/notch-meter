@@ -38,9 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onRefresh: { [weak self] in self?.manualRefresh() },
                 onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },
                 onSignIn: { [weak self] provider in self?.signIn(provider: provider) },
-                onSignOut: { [weak self] provider in self?.confirmSignOut(provider: provider) },
-                onConfigureProxy: { [weak self] in self?.configureProxy() },
-                onClearProxy: { [weak self] in self?.clearProxy() },
                 onQuit: { NSApp.terminate(nil) },
                 onExpansionChange: { [weak self] expanded in
                     self?.overlay.setExpanded(expanded)
@@ -59,63 +56,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func confirmSignOut(provider: AgentUsageProvider) {
-        let alert = NSAlert()
-        alert.messageText = "Sign out of \(provider.displayName)?"
-        alert.informativeText = "This clears the saved local authorization for \(provider.displayName)."
-        alert.addButton(withTitle: "Sign Out")
-        alert.addButton(withTitle: "Cancel")
-        alert.alertStyle = .warning
-
-        NSApp.activate(ignoringOtherApps: true)
-        let response = overlay.runModalWithCollapsedOverlay {
-            alert.runModal()
-        }
-        guard response == .alertFirstButtonReturn else {
-            return
-        }
-        viewModel.signOut(provider: provider)
-    }
-
-    private func configureProxy() {
-        let alert = NSAlert()
-        alert.messageText = "Configure Proxy"
-        alert.informativeText = "Enter an HTTP/HTTPS/SOCKS proxy URL, for example http://127.0.0.1:7890. Leave blank to disable the saved proxy."
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
-
-        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
-        input.placeholderString = "http://127.0.0.1:7890"
-        input.stringValue = AgentUsageAppConfig.savedProxyURLString() ?? ""
-        alert.accessoryView = input
-
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else {
-            return
-        }
-
-        do {
-            try AgentUsageAppConfig.saveProxyURLString(input.stringValue)
-            viewModel.authMessage = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ? "Proxy disabled"
-                : "Proxy configured"
-            viewModel.refresh(showToast: true)
-        } catch {
-            viewModel.authMessage = error.localizedDescription
-        }
-    }
-
-    private func clearProxy() {
-        do {
-            try AgentUsageAppConfig.saveProxyURLString(nil)
-            viewModel.authMessage = "Proxy disabled"
-            viewModel.refresh(showToast: true)
-        } catch {
-            viewModel.authMessage = error.localizedDescription
-        }
-    }
-
 }
 
 @MainActor
@@ -126,9 +66,9 @@ final class NotchOverlayController {
     private var collapseWorkItem: DispatchWorkItem?
 
     func show<Content: View>(rootView: Content) {
-        let panel = NSPanel(
+        let panel = NotchPanel(
             contentRect: NSRect(origin: .zero, size: metrics.compactSize),
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
@@ -167,21 +107,6 @@ final class NotchOverlayController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: workItem)
     }
 
-    func runModalWithCollapsedOverlay<T>(_ body: () -> T) -> T {
-        let wasExpanded = isExpanded
-        collapseWorkItem?.cancel()
-        isExpanded = false
-        position(size: metrics.compactSize)
-        defer {
-            if let panel {
-                isExpanded = wasExpanded
-                position(size: wasExpanded ? metrics.expandedSize : metrics.compactSize)
-                panel.orderFrontRegardless()
-            }
-        }
-        return body()
-    }
-
     private func position(size: NSSize) {
         guard let panel else {
             return
@@ -196,6 +121,11 @@ final class NotchOverlayController {
         let target = NSRect(origin: origin, size: size)
         panel.setFrame(target, display: true)
     }
+}
+
+final class NotchPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }
 
 struct NotchOverlayMetrics {

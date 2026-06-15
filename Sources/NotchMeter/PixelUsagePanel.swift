@@ -604,6 +604,30 @@ final class UsageViewModel: ObservableObject {
         }
     }
 
+    func configureProxy(_ value: String) {
+        do {
+            try AgentUsageAppConfig.saveProxyURLString(value)
+            authMessage = value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Proxy disabled"
+                : "Proxy configured"
+            refresh(showToast: true)
+        } catch {
+            authMessage = error.localizedDescription
+            presentToast("Proxy failed: \(Self.shortError(error))")
+        }
+    }
+
+    func clearProxy() {
+        do {
+            try AgentUsageAppConfig.saveProxyURLString(nil)
+            authMessage = "Proxy disabled"
+            refresh(showToast: true)
+        } catch {
+            authMessage = error.localizedDescription
+            presentToast("Proxy failed: \(Self.shortError(error))")
+        }
+    }
+
     private func reloadAuthStatuses() {
         var statuses: [AgentUsageProvider: ProviderAuthStatus] = [:]
         for provider in AgentUsageProvider.allCases {
@@ -694,15 +718,17 @@ enum ProviderAuthStatus: Equatable {
     }
 }
 
+private enum NotchOverlayModal: Equatable {
+    case signOut(AgentUsageProvider)
+    case proxy
+}
+
 struct NotchOverlayView: View {
     @ObservedObject var viewModel: UsageViewModel
     let metrics: NotchOverlayMetrics
     let onRefresh: () -> Void
     let onSelectProvider: (AgentUsageProvider) -> Void
     let onSignIn: (AgentUsageProvider) -> Void
-    let onSignOut: (AgentUsageProvider) -> Void
-    let onConfigureProxy: () -> Void
-    let onClearProxy: () -> Void
     let onQuit: () -> Void
     let onExpansionChange: (Bool) -> Void
 
@@ -710,6 +736,8 @@ struct NotchOverlayView: View {
     @State private var hover = false
     @State private var scanlineOffset: CGFloat = -42
     @State private var theme: NotchTheme = .pixel
+    @State private var activeModal: NotchOverlayModal?
+    @State private var proxyDraft = ""
 
     private var expansionAnimation: Animation {
         .easeInOut(duration: expanded ? 0.24 : 0.18)
@@ -768,6 +796,12 @@ struct NotchOverlayView: View {
 
                 Spacer(minLength: 0)
             }
+
+            if let activeModal {
+                modalOverlay(activeModal)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                    .zIndex(10)
+            }
         }
         .frame(
             width: metrics.totalWidth,
@@ -781,6 +815,9 @@ struct NotchOverlayView: View {
         .background(Color.clear)
         .onHover { inside in
             guard !inside else {
+                return
+            }
+            guard activeModal == nil else {
                 return
             }
             withAnimation(.easeInOut(duration: 0.18)) {
@@ -798,10 +835,10 @@ struct NotchOverlayView: View {
         }
         .contextMenu {
             Button("Configure Proxy...") {
-                onConfigureProxy()
+                showProxyModal()
             }
             Button("Clear Proxy") {
-                onClearProxy()
+                viewModel.clearProxy()
             }
             Divider()
             Button("Quit NotchMeter", action: onQuit)
@@ -881,6 +918,9 @@ struct NotchOverlayView: View {
             guard inside else {
                 return
             }
+            guard activeModal == nil else {
+                return
+            }
             withAnimation(.easeInOut(duration: 0.24)) {
                 hover = true
                 expanded = true
@@ -922,7 +962,7 @@ struct NotchOverlayView: View {
                             onSignIn(viewModel.selectedProvider)
                         },
                         onSignOut: {
-                            onSignOut(viewModel.selectedProvider)
+                            showSignOutModal(provider: viewModel.selectedProvider)
                         }
                     )
                 }
@@ -974,6 +1014,73 @@ struct NotchOverlayView: View {
         withAnimation(.easeInOut(duration: 0.18)) {
             theme = theme.next
         }
+    }
+
+    private func showSignOutModal(provider: AgentUsageProvider) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            expanded = true
+            activeModal = .signOut(provider)
+        }
+    }
+
+    private func showProxyModal() {
+        proxyDraft = AgentUsageAppConfig.savedProxyURLString() ?? ""
+        withAnimation(.easeInOut(duration: 0.18)) {
+            expanded = true
+            activeModal = .proxy
+        }
+    }
+
+    private func dismissModal() {
+        withAnimation(.easeInOut(duration: 0.14)) {
+            activeModal = nil
+        }
+    }
+
+    @ViewBuilder
+    private func modalOverlay(_ modal: NotchOverlayModal) -> some View {
+        ZStack(alignment: .top) {
+            Color.black.opacity(0.22)
+                .contentShape(Rectangle())
+                .onTapGesture(perform: dismissModal)
+
+            VStack(spacing: 0) {
+                Spacer()
+                    .frame(height: metrics.menuBarHeight + 18)
+
+                NotchModalSurface(theme: theme) {
+                    switch modal {
+                    case .signOut(let provider):
+                        NotchConfirmModal(
+                            title: "Sign out \(provider.compactName)?",
+                            message: "Clear saved authorization for \(provider.displayName).",
+                            destructiveTitle: "SIGN OUT",
+                            cancelTitle: "CANCEL",
+                            theme: theme,
+                            onConfirm: {
+                                viewModel.signOut(provider: provider)
+                                dismissModal()
+                            },
+                            onCancel: dismissModal
+                        )
+                    case .proxy:
+                        NotchProxyModal(
+                            draft: $proxyDraft,
+                            theme: theme,
+                            onSave: {
+                                viewModel.configureProxy(proxyDraft)
+                                dismissModal()
+                            },
+                            onCancel: dismissModal
+                        )
+                    }
+                }
+                .padding(.horizontal, theme.horizontalPadding)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(width: metrics.totalWidth, height: visibleHeight, alignment: .top)
     }
 
     private func remainingText(for window: RateLimitWindow?) -> String {
@@ -1289,6 +1396,119 @@ private struct ToastPill: View {
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 3)
             .allowsHitTesting(false)
+    }
+}
+
+private struct NotchModalSurface<Content: View>: View {
+    let theme: NotchTheme
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.black)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(theme.edge.opacity(0.9), lineWidth: max(1, theme.cardBorderWidth))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .shadow(color: Color.black.opacity(0.55), radius: 14, x: 0, y: 8)
+    }
+}
+
+private struct NotchConfirmModal: View {
+    let title: String
+    let message: String
+    let destructiveTitle: String
+    let cancelTitle: String
+    let theme: NotchTheme
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            modalHeader(title: title, message: message, theme: theme)
+
+            HStack(spacing: 8) {
+                Spacer()
+                NotchModalButton(title: cancelTitle, tint: theme.hudMuted, theme: theme, action: onCancel)
+                NotchModalButton(title: destructiveTitle, tint: theme.accentD, theme: theme, action: onConfirm)
+            }
+        }
+    }
+}
+
+private struct NotchProxyModal: View {
+    @Binding var draft: String
+    let theme: NotchTheme
+    let onSave: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            modalHeader(
+                title: "Proxy",
+                message: "HTTP, HTTPS, or SOCKS URL. Leave blank to disable.",
+                theme: theme
+            )
+
+            TextField("http://127.0.0.1:7890", text: $draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, weight: theme.labelWeight, design: theme.fontDesign))
+                .foregroundStyle(theme.hudInk)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(theme.panel.opacity(0.78))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(theme.edge.opacity(0.85), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            HStack(spacing: 8) {
+                Spacer()
+                NotchModalButton(title: "CANCEL", tint: theme.hudMuted, theme: theme, action: onCancel)
+                NotchModalButton(title: "SAVE", tint: theme.actionAccent, theme: theme, action: onSave)
+            }
+        }
+    }
+}
+
+private func modalHeader(title: String, message: String, theme: NotchTheme) -> some View {
+    VStack(alignment: .leading, spacing: 5) {
+        Text(title.uppercased())
+            .font(.system(size: 12, weight: theme.valueWeight, design: theme.fontDesign))
+            .foregroundStyle(theme.hudInk)
+            .lineLimit(1)
+        Text(message)
+            .font(.system(size: 10, weight: theme.labelWeight, design: theme.fontDesign))
+            .foregroundStyle(theme.hudMuted)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct NotchModalButton: View {
+    let title: String
+    let tint: Color
+    let theme: NotchTheme
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: theme.labelWeight, design: theme.fontDesign))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(tint.opacity(0.12))
+                .clipShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }
 
