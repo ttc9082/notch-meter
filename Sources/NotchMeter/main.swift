@@ -39,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onSelectProvider: { [weak self] provider in self?.selectProvider(provider) },
                 onSignIn: { [weak self] provider in self?.signIn(provider: provider) },
                 onSignOut: { [weak self] provider in self?.signOut(provider: provider) },
+                onConfigureProxy: { [weak self] in self?.configureProxy() },
+                onClearProxy: { [weak self] in self?.clearProxy() },
                 onQuit: { NSApp.terminate(nil) },
                 onExpansionChange: { [weak self] expanded in
                     self?.overlay.setExpanded(expanded)
@@ -60,6 +62,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func signOut(provider: AgentUsageProvider) {
         signInController.signOut(provider: provider)
         refresh()
+    }
+
+    private func configureProxy() {
+        let alert = NSAlert()
+        alert.messageText = "Configure Proxy"
+        alert.informativeText = "Enter an HTTP/HTTPS/SOCKS proxy URL, for example http://127.0.0.1:7890. Leave blank to disable the saved proxy."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 320, height: 24))
+        input.placeholderString = "http://127.0.0.1:7890"
+        input.stringValue = AgentUsageAppConfig.savedProxyURLString() ?? ""
+        alert.accessoryView = input
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else {
+            return
+        }
+
+        do {
+            try AgentUsageAppConfig.saveProxyURLString(input.stringValue)
+            viewModel.authMessage = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Proxy disabled"
+                : "Proxy configured"
+            viewModel.refresh(showToast: true)
+        } catch {
+            viewModel.authMessage = error.localizedDescription
+        }
+    }
+
+    private func clearProxy() {
+        do {
+            try AgentUsageAppConfig.saveProxyURLString(nil)
+            viewModel.authMessage = "Proxy disabled"
+            viewModel.refresh(showToast: true)
+        } catch {
+            viewModel.authMessage = error.localizedDescription
+        }
     }
 
 }

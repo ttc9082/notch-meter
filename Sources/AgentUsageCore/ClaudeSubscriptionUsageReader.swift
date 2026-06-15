@@ -43,7 +43,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         var credentials = try loadCredentials()
         do {
             return try await fetchSnapshot(accessToken: credentials.accessToken)
-        } catch CodexRemoteUsageError.requestFailed(let status) where status == 401 || status == 403 {
+        } catch CodexRemoteUsageError.requestFailed(let status) where status == 401 {
             credentials = try await refreshCredentials(credentials)
             return try await fetchSnapshot(accessToken: credentials.accessToken)
         }
@@ -63,7 +63,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await AgentUsageNetwork.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
             throw CodexRemoteUsageError.requestFailed(http.statusCode)
@@ -109,7 +109,7 @@ public final class ClaudeSubscriptionUsageReader: @unchecked Sendable {
             "client_id": Self.clientID
         ])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await AgentUsageNetwork.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
             throw CodexRemoteUsageError.refreshFailed(http.statusCode)

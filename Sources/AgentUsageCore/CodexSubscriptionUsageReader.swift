@@ -182,7 +182,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
         var credentials = try loadCredentials()
         do {
             return try await fetchSnapshot(accessToken: credentials.accessToken)
-        } catch CodexRemoteUsageError.requestFailed(let status) where status == 401 || status == 403 {
+        } catch CodexRemoteUsageError.requestFailed(let status) where status == 401 {
             credentials = try await refreshCredentials(credentials)
             return try await fetchSnapshot(accessToken: credentials.accessToken)
         }
@@ -204,7 +204,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await AgentUsageNetwork.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
             throw CodexRemoteUsageError.requestFailed(http.statusCode)
@@ -267,7 +267,7 @@ public final class CodexSubscriptionUsageReader: @unchecked Sendable {
             "refresh_token": refreshToken
         ])
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await AgentUsageNetwork.data(for: request)
         if let http = response as? HTTPURLResponse,
            !(200..<300).contains(http.statusCode) {
             if Self.isUnrecoverableRefresh(data: data) {

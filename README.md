@@ -81,6 +81,16 @@ swift run notch-meter
 
 The remote subscription endpoint is useful for accurate 5-hour and weekly quota windows. Local session files are still used as a fallback and to fill token totals when the remote response only includes quota data. If NotchMeter has no Codex credentials in `~/.notchmeter/auth.json`, it can still fall back to the existing Codex `~/.codex/auth.json` cache.
 
+If your network needs a proxy, right-click the notch HUD and choose `Configure Proxy...`. You can also set `NOTCHMETER_PROXY_URL`, or write a config file at `~/.notchmeter/config.json`:
+
+```json
+{
+  "proxyURL": "http://127.0.0.1:7890"
+}
+```
+
+HTTP, HTTPS, and SOCKS/SOCKS5 proxy URLs are accepted.
+
 ## Install From Source
 
 ```sh

@@ -572,6 +572,8 @@ struct NotchOverlayView: View {
     let onSelectProvider: (AgentUsageProvider) -> Void
     let onSignIn: (AgentUsageProvider) -> Void
     let onSignOut: (AgentUsageProvider) -> Void
+    let onConfigureProxy: () -> Void
+    let onClearProxy: () -> Void
     let onQuit: () -> Void
     let onExpansionChange: (Bool) -> Void
 
@@ -655,6 +657,13 @@ struct NotchOverlayView: View {
             }
             Button("Clear \(viewModel.selectedProvider.displayName) Sign-In") {
                 onSignOut(viewModel.selectedProvider)
+            }
+            Divider()
+            Button("Configure Proxy...") {
+                onConfigureProxy()
+            }
+            Button("Clear Proxy") {
+                onClearProxy()
             }
             Divider()
             Button("Quit NotchMeter", action: onQuit)
