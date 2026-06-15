@@ -184,7 +184,7 @@ struct NotchOverlayMetrics {
 
     static func current(screen: NSScreen? = NSScreen.main ?? NSScreen.screens.first) -> NotchOverlayMetrics {
         guard let screen else {
-            return NotchOverlayMetrics(totalWidth: 448, notchWidth: 188, menuBarHeight: 32, expandedHeight: 330)
+            return NotchOverlayMetrics(totalWidth: 448, notchWidth: 188, menuBarHeight: 32, expandedHeight: 462)
         }
 
         if #available(macOS 12.0, *),
@@ -197,11 +197,11 @@ struct NotchOverlayMetrics {
                 totalWidth: notchWidth + earWidth * 2,
                 notchWidth: notchWidth,
                 menuBarHeight: menuBarHeight,
-                expandedHeight: menuBarHeight + 336
+                expandedHeight: menuBarHeight + 430
             )
         }
 
-        return NotchOverlayMetrics(totalWidth: 448, notchWidth: 188, menuBarHeight: 32, expandedHeight: 330)
+        return NotchOverlayMetrics(totalWidth: 448, notchWidth: 188, menuBarHeight: 32, expandedHeight: 462)
     }
 }
 

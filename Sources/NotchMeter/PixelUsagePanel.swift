@@ -424,39 +424,40 @@ private enum NotchTheme: CaseIterable {
     }
 
     func expandedDeckHeight(for provider: AgentUsageProvider) -> CGFloat {
-        baseExpandedDeckHeight + providerDeckAdjustment(for: provider)
+        topPadding
+            + progressBlockHeight
+            + contentSpacing
+            + detailCardsHeight(for: provider)
+            + footerTopSpacing
+            + footerHeight
+            + bottomPadding
     }
 
-    private var baseExpandedDeckHeight: CGFloat {
-        switch self {
-        case .pixel:
-            return 300
-        case .bauhaus:
-            return 284
-        case .swiss:
-            return 252
-        case .artDeco:
-            return 328
-        case .cobalt:
-            return 268
-        case .longTable:
-            return 312
+    private var progressBlockHeight: CGFloat {
+        progressHeight * 2 + 43
+    }
+
+    private var footerHeight: CGFloat {
+        25
+    }
+
+    private func detailCardsHeight(for provider: AgentUsageProvider) -> CGFloat {
+        switch provider {
+        case .codex:
+            return cardHeight * 2 + gridSpacing
+        case .claude:
+            return cardHeight * 2 + gridSpacing * 2 + extraUsageRowHeight
         }
     }
 
-    private func providerDeckAdjustment(for provider: AgentUsageProvider) -> CGFloat {
-        switch provider {
-        case .codex:
-            return 8
-        case .claude:
-            switch self {
-            case .swiss, .cobalt:
-                return 54
-            case .bauhaus:
-                return 46
-            default:
-                return 42
-            }
+    private var extraUsageRowHeight: CGFloat {
+        switch self {
+        case .artDeco, .longTable:
+            return 44
+        case .bauhaus:
+            return 42
+        default:
+            return 40
         }
     }
 }
