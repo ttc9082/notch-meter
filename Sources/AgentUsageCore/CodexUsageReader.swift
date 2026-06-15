@@ -39,14 +39,23 @@ public struct RateLimitStatus: Equatable, Sendable {
 }
 
 public struct ClaudeUsageDetails: Equatable, Sendable {
+    public var opusSevenDay: RateLimitWindow?
     public var sonnetSevenDay: RateLimitWindow?
+    public var oauthAppsSevenDay: RateLimitWindow?
+    public var coworkSevenDay: RateLimitWindow?
     public var extraUsage: ClaudeExtraUsage?
 
     public init(
+        opusSevenDay: RateLimitWindow? = nil,
         sonnetSevenDay: RateLimitWindow? = nil,
+        oauthAppsSevenDay: RateLimitWindow? = nil,
+        coworkSevenDay: RateLimitWindow? = nil,
         extraUsage: ClaudeExtraUsage? = nil
     ) {
+        self.opusSevenDay = opusSevenDay
         self.sonnetSevenDay = sonnetSevenDay
+        self.oauthAppsSevenDay = oauthAppsSevenDay
+        self.coworkSevenDay = coworkSevenDay
         self.extraUsage = extraUsage
     }
 }

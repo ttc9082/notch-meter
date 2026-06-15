@@ -430,11 +430,20 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
-    func expandedDeckHeight(for provider: AgentUsageProvider, hasClaudeExtraUsage: Bool) -> CGFloat {
-        topPadding
+    func expandedDeckHeight(
+        for provider: AgentUsageProvider,
+        claudeDetailMetricCount: Int,
+        hasClaudeExtraUsage: Bool
+    ) -> CGFloat {
+        let detailHeight = detailCardsHeight(
+            for: provider,
+            claudeDetailMetricCount: claudeDetailMetricCount,
+            hasClaudeExtraUsage: hasClaudeExtraUsage
+        )
+
+        return topPadding
             + progressBlockHeight
-            + contentSpacing
-            + detailCardsHeight(for: provider, hasClaudeExtraUsage: hasClaudeExtraUsage)
+            + (detailHeight > 0 ? contentSpacing + detailHeight : 0)
             + footerTopSpacing
             + footerHeight
             + bottomPadding
@@ -448,16 +457,23 @@ private enum NotchTheme: CaseIterable {
         34
     }
 
-    private func detailCardsHeight(for provider: AgentUsageProvider, hasClaudeExtraUsage: Bool) -> CGFloat {
+    private func detailCardsHeight(
+        for provider: AgentUsageProvider,
+        claudeDetailMetricCount: Int,
+        hasClaudeExtraUsage: Bool
+    ) -> CGFloat {
         switch provider {
         case .codex:
             return cardHeight * 2 + gridSpacing
         case .claude:
-            let cardGridHeight = cardHeight * 2 + gridSpacing
-            guard hasClaudeExtraUsage else {
-                return cardGridHeight
+            guard claudeDetailMetricCount > 0 else {
+                return 0
             }
-            return cardGridHeight + gridSpacing + extraUsageRowHeight
+            let rows = CGFloat((claudeDetailMetricCount + 1) / 2)
+            let gridHeight = rows * cardHeight + max(0, rows - 1) * gridSpacing
+            return hasClaudeExtraUsage
+                ? gridHeight + gridSpacing + extraUsageRowHeight
+                : gridHeight
         }
     }
 
@@ -698,8 +714,24 @@ struct NotchOverlayView: View {
     private var detailDeckHeight: CGFloat {
         theme.expandedDeckHeight(
             for: viewModel.selectedProvider,
+            claudeDetailMetricCount: claudeDetailMetricCount,
             hasClaudeExtraUsage: viewModel.snapshot.claudeDetails?.extraUsage != nil
         )
+    }
+
+    private var claudeDetailMetricCount: Int {
+        guard viewModel.selectedProvider == .claude,
+              let details = viewModel.snapshot.claudeDetails else {
+            return 0
+        }
+
+        return [
+            details.opusSevenDay,
+            details.sonnetSevenDay,
+            details.oauthAppsSevenDay,
+            details.coworkSevenDay
+        ].filter { $0 != nil }.count
+            + (details.extraUsage == nil ? 0 : 1)
     }
 
     var body: some View {
@@ -911,8 +943,6 @@ struct NotchOverlayView: View {
             }
         case .claude:
             ClaudeDetailCards(
-                primary: viewModel.snapshot.rateLimits?.primary,
-                secondary: viewModel.snapshot.rateLimits?.secondary,
                 details: viewModel.snapshot.claudeDetails,
                 theme: theme
             )
@@ -1256,18 +1286,17 @@ private struct ToastPill: View {
 }
 
 private struct ClaudeDetailCards: View {
-    let primary: RateLimitWindow?
-    let secondary: RateLimitWindow?
     let details: ClaudeUsageDetails?
     let theme: NotchTheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.gridSpacing) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
-                PixelMetricCard(label: "5H USED", value: usedPercent(primary), tint: color(for: primary), theme: theme)
-                PixelMetricCard(label: "7D USED", value: usedPercent(secondary), tint: color(for: secondary), theme: theme)
-                PixelMetricCard(label: "SONNET", value: usedPercent(details?.sonnetSevenDay), tint: color(for: details?.sonnetSevenDay), theme: theme)
-                PixelMetricCard(label: "EXTRA", value: extraUsageValue, tint: extraUsageTint, theme: theme)
+            if !metrics.isEmpty {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
+                    ForEach(metrics) { metric in
+                        PixelMetricCard(label: metric.label, value: metric.value, tint: metric.tint, theme: theme)
+                    }
+                }
             }
 
             if let extraUsage = details?.extraUsage {
@@ -1276,20 +1305,55 @@ private struct ClaudeDetailCards: View {
         }
     }
 
-    private var extraUsageValue: String {
-        guard let extraUsage = details?.extraUsage else {
-            return "--"
+    private var metrics: [ClaudeDetailMetric] {
+        guard let details else {
+            return []
         }
+
+        var values: [ClaudeDetailMetric] = []
+        appendWindow(&values, label: "OPUS 7D", window: details.opusSevenDay)
+        appendWindow(&values, label: "SONNET 7D", window: details.sonnetSevenDay)
+        appendWindow(&values, label: "OAUTH 7D", window: details.oauthAppsSevenDay)
+        appendWindow(&values, label: "COWORK 7D", window: details.coworkSevenDay)
+
+        if let extraUsage = details.extraUsage {
+            values.append(
+                ClaudeDetailMetric(
+                    label: "EXTRA",
+                    value: extraUsageValue(for: extraUsage),
+                    tint: extraUsageTint(for: extraUsage)
+                )
+            )
+        }
+
+        return values
+    }
+
+    private func appendWindow(
+        _ values: inout [ClaudeDetailMetric],
+        label: String,
+        window: RateLimitWindow?
+    ) {
+        guard let window else {
+            return
+        }
+        values.append(
+            ClaudeDetailMetric(
+                label: label,
+                value: usedPercent(window),
+                tint: color(for: window)
+            )
+        )
+    }
+
+    private func extraUsageValue(for extraUsage: ClaudeExtraUsage) -> String {
         if let utilization = extraUsage.utilization {
             return "\(Int(utilization.rounded()))%"
         }
         return extraUsage.isEnabled ? "ON" : "OFF"
     }
 
-    private var extraUsageTint: Color {
-        guard let extraUsage = details?.extraUsage else {
-            return theme.muted
-        }
+    private func extraUsageTint(for extraUsage: ClaudeExtraUsage) -> Color {
         if let utilization = extraUsage.utilization {
             if utilization >= 80 {
                 return theme.accentD
@@ -1321,6 +1385,14 @@ private struct ClaudeDetailCards: View {
         }
         return theme.accentA
     }
+}
+
+private struct ClaudeDetailMetric: Identifiable {
+    let label: String
+    let value: String
+    let tint: Color
+
+    var id: String { label }
 }
 
 private struct ClaudeExtraUsageRow: View {

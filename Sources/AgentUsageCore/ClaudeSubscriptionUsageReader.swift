@@ -282,7 +282,16 @@ private final class HTTPDateFormatter: @unchecked Sendable {
 private enum ClaudeUsageParser {
     static func details(from object: [String: Any]) -> ClaudeUsageDetails {
         ClaudeUsageDetails(
+            opusSevenDay: (object["seven_day_opus"] as? [String: Any]).map {
+                window(from: $0, fallbackMinutes: 10_080)
+            },
             sonnetSevenDay: (object["seven_day_sonnet"] as? [String: Any]).map {
+                window(from: $0, fallbackMinutes: 10_080)
+            },
+            oauthAppsSevenDay: (object["seven_day_oauth_apps"] as? [String: Any]).map {
+                window(from: $0, fallbackMinutes: 10_080)
+            },
+            coworkSevenDay: (object["seven_day_cowork"] as? [String: Any]).map {
                 window(from: $0, fallbackMinutes: 10_080)
             },
             extraUsage: (object["extra_usage"] as? [String: Any]).map(extraUsage(from:))
@@ -323,7 +332,14 @@ private enum ClaudeUsageParser {
         RateLimitWindow(
             usedPercent: max(0, min(100, doubleValue(object["utilization"]))),
             windowMinutes: fallbackMinutes,
-            resetsAt: dateValue(object["resets_at"] ?? object["reset_at"])
+            resetsAt: dateValue(
+                object["resets_at"]
+                    ?? object["reset_at"]
+                    ?? object["resetsAt"]
+                    ?? object["resetAt"]
+                    ?? object["reset_time"]
+                    ?? object["resetTime"]
+            )
         )
     }
 
@@ -339,7 +355,12 @@ private enum ClaudeUsageParser {
             if let double = Double(string) {
                 return Date(timeIntervalSince1970: double < 1e12 ? double : double / 1000)
             }
-            return ISO8601DateFormatter().date(from: string)
+            if let date = ISO8601DateFormatter().date(from: string) {
+                return date
+            }
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            return formatter.date(from: string)
         }
         return nil
     }
