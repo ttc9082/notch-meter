@@ -800,7 +800,6 @@ struct NotchOverlayView: View {
                 }
             }
             .padding(.horizontal, theme.horizontalPadding)
-            .padding(.leading, 2)
             .padding(.bottom, 13)
 
             if let toastMessage = viewModel.toastMessage {
@@ -962,7 +961,6 @@ private struct ProviderSwitcherFooter: View {
                 }
             }
         }
-        .padding(.horizontal, 8)
         .padding(.vertical, 5)
     }
 }
