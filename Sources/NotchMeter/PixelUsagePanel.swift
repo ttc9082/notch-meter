@@ -790,7 +790,8 @@ struct NotchOverlayView: View {
                 }
             }
             .padding(.horizontal, theme.horizontalPadding)
-            .padding(.bottom, 2)
+            .padding(.leading, 2)
+            .padding(.bottom, 7)
 
             if let toastMessage = viewModel.toastMessage {
                 VStack {
@@ -904,7 +905,8 @@ private struct CompactRemainingLabel: View {
         .font(.system(size: compactFontSize, weight: theme.labelWeight, design: theme.fontDesign))
         .lineLimit(1)
         .minimumScaleFactor(0.72)
-        .padding(.horizontal, 6)
+        .padding(.leading, provider == nil ? 8 : 10)
+        .padding(.trailing, 8)
     }
 
     private var compactFontSize: CGFloat {
@@ -939,17 +941,17 @@ private struct SourceBadge: View {
     let theme: NotchTheme
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 6) {
             ProviderLogoMark(provider: provider, tint: theme.hudMuted.opacity(0.78))
-                .frame(width: 10, height: 10)
+                .frame(width: 11, height: 11)
 
             Text(text)
                 .font(.system(size: 8, weight: theme.labelWeight, design: theme.fontDesign))
                 .foregroundStyle(theme.hudMuted.opacity(0.58))
                 .lineLimit(1)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .background(Color.black.opacity(0.72))
         .overlay(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
