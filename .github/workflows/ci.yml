@@ -52,4 +52,4 @@ jobs:
           body_path: RELEASE.md
           files: |
             dist/*.dmg
-            docs/assets/notchmeter-v0.1.0-themes.png
+            docs/assets/notchmeter-v1.0-themes.png

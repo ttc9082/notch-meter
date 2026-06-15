@@ -4,6 +4,8 @@ NotchMeter is a tiny open-source macOS notch HUD for keeping coding-agent and mo
 
 The first provider reads local Codex Desktop / Codex CLI session JSONL files from `~/.codex/sessions`, finds `token_count` events, and shows rate-limit windows plus today's token totals. NotchMeter can also sign in to provider subscription accounts, including Codex and Claude Code, then show remote quota data. The project is intentionally provider-ready so future versions can add other coding agents and models.
 
+![NotchMeter v1.0 themes](docs/assets/notchmeter-v1.0-themes.png)
+
 Repository: `https://github.com/ttc9082/notch-meter`
 
 ## Status
@@ -107,11 +109,11 @@ Maintainers can create and push the public GitHub repository with either `gh` or
 scripts/publish-github.sh
 ```
 
-GitHub Actions runs CI on pushes and pull requests. Pushing a version tag creates a release DMG:
+GitHub Actions runs CI on pushes and pull requests. Pushing a version tag creates a GitHub Release with a downloadable DMG:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0
+git push origin v1.0
 ```
 
 ## What It Shows

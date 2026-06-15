@@ -4,7 +4,7 @@
 
 NotchMeter 1.0 is the first formal release of the macOS notch HUD for coding-agent and model usage. It integrates with the MacBook notch, shows compact quota indicators in the notch ears, and expands into a themed usage dashboard on hover.
 
-![NotchMeter themes](https://raw.githubusercontent.com/ttc9082/notch-meter/main/docs/assets/notchmeter-v0.1.0-themes.png)
+![NotchMeter v1.0 themes](https://raw.githubusercontent.com/ttc9082/notch-meter/main/docs/assets/notchmeter-v1.0-themes.png)
 
 ### Highlights
 
