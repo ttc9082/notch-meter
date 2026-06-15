@@ -536,7 +536,7 @@ final class UsageViewModel: ObservableObject {
                     return
                 }
                 authMessage = error.localizedDescription
-                presentToast("Sign-in failed")
+                presentToast("Sign-in failed: \(Self.shortError(error))")
             }
         }
     }

@@ -254,7 +254,7 @@ private struct OAuthProviderConfig {
         case .claude:
             clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
             authorizeURL = URL(string: "https://claude.ai/oauth/authorize")!
-            tokenURL = URL(string: "https://console.anthropic.com/v1/oauth/token")!
+            tokenURL = URL(string: "https://platform.claude.com/v1/oauth/token")!
             redirectURI = "https://platform.claude.com/oauth/code/callback"
             scope = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers"
             extraQueryItems = [
