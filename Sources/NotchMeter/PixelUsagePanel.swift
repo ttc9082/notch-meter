@@ -451,12 +451,17 @@ final class UsageViewModel: ObservableObject {
     @Published var authMessage: String?
     @Published var isRefreshing = false
     @Published var toastMessage: String?
+    @Published var authStatuses: [AgentUsageProvider: ProviderAuthStatus] = [:]
     @Published var selectedProvider: AgentUsageProvider = UserDefaults.standard.string(forKey: "selectedProvider")
         .flatMap(AgentUsageProvider.init(rawValue:)) ?? .codex
 
     private let usageService = CodexUsageService()
     private var refreshTask: Task<Void, Never>?
     private var signInTask: Task<Void, Never>?
+
+    init() {
+        reloadAuthStatuses()
+    }
 
     func refresh(showToast: Bool = false) {
         withAnimation(.easeInOut(duration: 0.18)) {
@@ -528,6 +533,7 @@ final class UsageViewModel: ObservableObject {
                 }
                 selectedProvider = provider
                 UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
+                reloadAuthStatuses()
                 authMessage = "\(provider.displayName) sign-in complete"
                 presentToast("\(provider.displayName) signed in")
                 refresh(showToast: true)
@@ -539,6 +545,33 @@ final class UsageViewModel: ObservableObject {
                 presentToast("Sign-in failed: \(Self.shortError(error))")
             }
         }
+    }
+
+    private func reloadAuthStatuses() {
+        var statuses: [AgentUsageProvider: ProviderAuthStatus] = [:]
+        for provider in AgentUsageProvider.allCases {
+            guard let credentials = try? AgentOAuthFileStore.shared.load(provider: provider) else {
+                statuses[provider] = .signedOut
+                continue
+            }
+            statuses[provider] = .signedIn(label: Self.accountLabel(from: credentials) ?? "SIGNED IN")
+        }
+        authStatuses = statuses
+    }
+
+    private static func accountLabel(from credentials: CodexOAuthCredentials) -> String? {
+        guard let idToken = credentials.idToken else {
+            return nil
+        }
+        let parts = idToken.split(separator: ".")
+        guard parts.count >= 2,
+              let data = Data(base64URLEncoded: String(parts[1])),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return (object["email"] as? String)
+            ?? (object["name"] as? String)
+            ?? (object["preferred_username"] as? String)
     }
 
     private func presentToast(_ message: String) {
@@ -580,6 +613,27 @@ final class UsageViewModel: ObservableObject {
 
         let message = error.localizedDescription
         return message.count > 30 ? String(message.prefix(27)) + "..." : message
+    }
+}
+
+enum ProviderAuthStatus: Equatable {
+    case signedOut
+    case signedIn(label: String)
+
+    var isSignedIn: Bool {
+        if case .signedIn = self {
+            return true
+        }
+        return false
+    }
+
+    var label: String {
+        switch self {
+        case .signedOut:
+            return "LOGIN"
+        case .signedIn(let label):
+            return label
+        }
     }
 }
 
@@ -787,8 +841,9 @@ struct NotchOverlayView: View {
                         onSelectProvider: onSelectProvider
                     )
                     Spacer()
-                    ProviderLoginFooterButton(
+                    ProviderAuthFooterControl(
                         provider: viewModel.selectedProvider,
+                        status: viewModel.authStatuses[viewModel.selectedProvider] ?? .signedOut,
                         theme: theme
                     ) {
                         onSignIn(viewModel.selectedProvider)
@@ -998,30 +1053,74 @@ private struct ProviderFooterButton: View {
     }
 }
 
-private struct ProviderLoginFooterButton: View {
+private struct ProviderAuthFooterControl: View {
     let provider: AgentUsageProvider
+    let status: ProviderAuthStatus
     let theme: NotchTheme
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                ProviderLogoMark(provider: provider, tint: theme.actionAccent)
-                    .frame(width: 10, height: 10)
-
-                Text("LOGIN")
-                    .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
-                    .foregroundStyle(theme.actionAccent)
-                    .lineLimit(1)
+        Group {
+            if status.isSignedIn {
+                statusContent
+                    .help("\(provider.displayName) signed in")
+            } else {
+                Button(action: action) {
+                    statusContent
+                }
+                .buttonStyle(.plain)
+                .help("Sign in with \(provider.displayName)")
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(theme.actionAccent.opacity(0.12))
-            .clipShape(Capsule(style: .continuous))
-            .contentShape(Capsule(style: .continuous))
         }
-        .buttonStyle(.plain)
-        .help("Sign in with \(provider.displayName)")
+    }
+
+    private var statusContent: some View {
+        HStack(spacing: 5) {
+            ProviderLogoMark(provider: provider, tint: tint)
+                .frame(width: 10, height: 10)
+
+            Text(shortLabel)
+                .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: 86, alignment: .leading)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(background)
+        .clipShape(Capsule(style: .continuous))
+        .contentShape(Capsule(style: .continuous))
+    }
+
+    private var shortLabel: String {
+        switch status {
+        case .signedOut:
+            return "LOGIN"
+        case .signedIn(let label):
+            return label == "SIGNED IN" ? "SIGNED IN" : label
+        }
+    }
+
+    private var tint: Color {
+        status.isSignedIn ? theme.hudMuted.opacity(0.72) : theme.actionAccent
+    }
+
+    private var background: Color {
+        status.isSignedIn ? theme.hudMuted.opacity(0.08) : theme.actionAccent.opacity(0.12)
+    }
+}
+
+private extension Data {
+    init?(base64URLEncoded value: String) {
+        var base64 = value
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padding = base64.count % 4
+        if padding > 0 {
+            base64.append(String(repeating: "=", count: 4 - padding))
+        }
+        self.init(base64Encoded: base64)
     }
 }
 
