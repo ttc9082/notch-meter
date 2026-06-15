@@ -728,6 +728,16 @@ private enum NotchOverlayModal: Equatable {
     case proxy
 }
 
+private struct CompactNotchMetrics {
+    let leftEarWidth: CGFloat
+    let rightEarWidth: CGFloat
+    let notchWidth: CGFloat
+
+    var totalWidth: CGFloat {
+        leftEarWidth + notchWidth + rightEarWidth
+    }
+}
+
 struct OAuthCodeRequest: Identifiable, Equatable {
     let id: UUID
     let provider: AgentUsageProvider
@@ -801,6 +811,60 @@ struct NotchOverlayView: View {
             metrics.menuBarHeight + detailDeckHeight * expansionProgress,
             modalVisibleHeight
         )
+    }
+
+    private var activeTotalWidth: CGFloat {
+        max(metrics.totalWidth, compactMetrics.totalWidth)
+    }
+
+    private var activeLeftEarWidth: CGFloat {
+        expanded ? (activeTotalWidth - metrics.notchWidth) / 2 : compactMetrics.leftEarWidth
+    }
+
+    private var activeRightEarWidth: CGFloat {
+        expanded ? (activeTotalWidth - metrics.notchWidth) / 2 : compactMetrics.rightEarWidth
+    }
+
+    private var compactMetrics: CompactNotchMetrics {
+        let left = compactEarWidth(
+            label: "5H",
+            value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
+            includesProvider: true
+        )
+        let right = compactEarWidth(
+            label: "WK",
+            value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
+            includesProvider: false
+        )
+        return CompactNotchMetrics(
+            leftEarWidth: left,
+            rightEarWidth: right,
+            notchWidth: metrics.notchWidth
+        )
+    }
+
+    private func compactEarWidth(label: String, value: String, includesProvider: Bool) -> CGFloat {
+        let text = "\(label) \(value)"
+        let font = NSFont.systemFont(
+            ofSize: compactEstimateFontSize,
+            weight: nsFontWeight(for: theme.labelWeight)
+        )
+        let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        let logoWidth: CGFloat = includesProvider ? 14 : 0
+        let padding: CGFloat = includesProvider ? 16 : 14
+        let desired = textWidth + logoWidth + padding
+        return min(max(metrics.earWidth, desired), 126)
+    }
+
+    private var compactEstimateFontSize: CGFloat {
+        switch theme {
+        case .longTable:
+            return 12
+        case .cobalt:
+            return 11
+        default:
+            return 12
+        }
     }
 
     private var detailDeckHeight: CGFloat {
@@ -877,7 +941,7 @@ struct NotchOverlayView: View {
             }
         }
         .frame(
-            width: metrics.totalWidth,
+            width: activeTotalWidth,
             height: metrics.expandedHeight,
             alignment: .top
         )
@@ -963,7 +1027,7 @@ struct NotchOverlayView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
+                .frame(width: activeLeftEarWidth, height: metrics.menuBarHeight)
 
                 Color.clear
                     .frame(width: metrics.notchWidth, height: metrics.menuBarHeight)
@@ -993,10 +1057,10 @@ struct NotchOverlayView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(width: metrics.earWidth, height: metrics.menuBarHeight)
+                .frame(width: activeRightEarWidth, height: metrics.menuBarHeight)
             }
         }
-        .frame(width: metrics.totalWidth, height: metrics.menuBarHeight)
+        .frame(width: activeTotalWidth, height: metrics.menuBarHeight)
         .contentShape(Rectangle())
         .onHover { inside in
             guard inside else {
@@ -1067,7 +1131,7 @@ struct NotchOverlayView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
         }
-        .frame(width: metrics.totalWidth, height: detailDeckHeight)
+        .frame(width: activeTotalWidth, height: detailDeckHeight)
     }
 
     @ViewBuilder
@@ -1178,7 +1242,7 @@ struct NotchOverlayView: View {
                 Spacer(minLength: 0)
             }
         }
-        .frame(width: metrics.totalWidth, height: visibleHeight, alignment: .top)
+        .frame(width: activeTotalWidth, height: visibleHeight, alignment: .top)
     }
 
     private func oauthCodeModalOverlay(_ request: OAuthCodeRequest) -> some View {
@@ -1205,7 +1269,7 @@ struct NotchOverlayView: View {
                 Spacer(minLength: 0)
             }
         }
-        .frame(width: metrics.totalWidth, height: visibleHeight, alignment: .top)
+        .frame(width: activeTotalWidth, height: visibleHeight, alignment: .top)
     }
 
     private func remainingText(for window: RateLimitWindow?) -> String {
@@ -1318,6 +1382,29 @@ private struct CompactRemainingLabel: View {
         default:
             return 12
         }
+    }
+}
+
+private func nsFontWeight(for weight: Font.Weight) -> NSFont.Weight {
+    switch weight {
+    case .black:
+        return .black
+    case .heavy:
+        return .heavy
+    case .bold:
+        return .bold
+    case .semibold:
+        return .semibold
+    case .medium:
+        return .medium
+    case .light:
+        return .light
+    case .thin:
+        return .thin
+    case .ultraLight:
+        return .ultraLight
+    default:
+        return .regular
     }
 }
 

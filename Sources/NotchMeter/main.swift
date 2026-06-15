@@ -116,13 +116,19 @@ final class NotchOverlayController {
             return
         }
 
+        panel.layoutIfNeeded()
+        let fittingWidth = panel.contentView?.fittingSize.width ?? size.width
+        let resolvedSize = NSSize(
+            width: max(size.width, fittingWidth),
+            height: size.height
+        )
         let screen = NSScreen.main ?? NSScreen.screens.first
         let frame = screen?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let origin = NSPoint(
-            x: frame.midX - size.width / 2,
-            y: frame.maxY - size.height
+            x: frame.midX - resolvedSize.width / 2,
+            y: frame.maxY - resolvedSize.height
         )
-        let target = NSRect(origin: origin, size: size)
+        let target = NSRect(origin: origin, size: resolvedSize)
         panel.setFrame(target, display: true)
     }
 }
