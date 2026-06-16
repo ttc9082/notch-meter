@@ -133,6 +133,39 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
+    var hudGood: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 1, green: 0.28, blue: 0.18)
+        case .swiss:
+            return Color(red: 0.38, green: 0.62, blue: 1)
+        default:
+            return accentA
+        }
+    }
+
+    var hudWarning: Color {
+        switch self {
+        case .swiss:
+            return Color(red: 1, green: 0.78, blue: 0.12)
+        default:
+            return accentC
+        }
+    }
+
+    var hudDanger: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 1, green: 0.28, blue: 0.18)
+        case .artDeco:
+            return Color(red: 1, green: 0.5, blue: 0.26)
+        case .longTable:
+            return Color(red: 1, green: 0.48, blue: 0.28)
+        default:
+            return accentD
+        }
+    }
+
     var actionAccent: Color {
         switch self {
         case .bauhaus:
@@ -1287,16 +1320,16 @@ struct NotchOverlayView: View {
 
     private func remainingColor(for window: RateLimitWindow?) -> Color {
         guard viewModel.errorMessage == nil, let window else {
-            return theme.muted
+            return theme.hudMuted
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
         if remaining <= 15 {
-            return theme.accentD
+            return theme.hudDanger
         }
         if remaining <= 40 {
-            return theme.accentC
+            return theme.hudWarning
         }
-        return theme.accentA
+        return theme.hudGood
     }
 
     private func compact(_ value: Int) -> String {
@@ -1369,7 +1402,7 @@ private struct CompactRemainingLabel: View {
             }
             if showLabel {
                 Text(label)
-                    .foregroundStyle(theme.muted)
+                    .foregroundStyle(theme.hudMuted)
             }
             Text(value)
                 .foregroundStyle(tint)
