@@ -245,6 +245,75 @@ private enum NotchTheme: CaseIterable {
         }
     }
 
+    var cardMuted: Color {
+        switch self {
+        case .pixel:
+            return Color(red: 0.68, green: 0.76, blue: 0.76)
+        case .bauhaus:
+            return Color(red: 0.12, green: 0.12, blue: 0.1)
+        case .swiss:
+            return Color(red: 0.2, green: 0.27, blue: 0.34)
+        case .artDeco:
+            return Color(red: 0.9, green: 0.74, blue: 0.44)
+        case .cobalt:
+            return Color(red: 0.68, green: 0.82, blue: 1)
+        case .longTable:
+            return Color(red: 0.96, green: 0.74, blue: 0.6)
+        }
+    }
+
+    var cardAccentA: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 0.82, green: 0.08, blue: 0.06)
+        case .artDeco:
+            return Color(red: 1, green: 0.78, blue: 0.34)
+        case .longTable:
+            return Color(red: 1, green: 0.82, blue: 0.46)
+        default:
+            return accentA
+        }
+    }
+
+    var cardAccentB: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 0.0, green: 0.18, blue: 0.62)
+        case .artDeco:
+            return Color(red: 0.38, green: 0.9, blue: 0.86)
+        case .longTable:
+            return Color(red: 1, green: 0.5, blue: 0.28)
+        default:
+            return accentB
+        }
+    }
+
+    var cardAccentC: Color {
+        switch self {
+        case .swiss:
+            return Color(red: 0.03, green: 0.08, blue: 0.13)
+        case .artDeco:
+            return Color(red: 1, green: 0.9, blue: 0.58)
+        case .longTable:
+            return Color(red: 1, green: 0.9, blue: 0.66)
+        default:
+            return accentC
+        }
+    }
+
+    var cardAccentD: Color {
+        switch self {
+        case .bauhaus:
+            return Color(red: 0.02, green: 0.02, blue: 0.02)
+        case .artDeco:
+            return Color(red: 0.95, green: 0.66, blue: 0.34)
+        case .longTable:
+            return Color(red: 1, green: 0.42, blue: 0.25)
+        default:
+            return accentD
+        }
+    }
+
     var fontDesign: Font.Design {
         switch self {
         case .pixel, .cobalt:
@@ -1177,10 +1246,10 @@ struct NotchOverlayView: View {
         switch viewModel.selectedProvider {
         case .codex:
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: theme.gridSpacing), count: 2), spacing: theme.gridSpacing) {
-                PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: theme.accentA, theme: theme)
-                PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: theme.accentB, theme: theme)
-                PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: theme.accentC, theme: theme)
-                PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: theme.accentD, theme: theme)
+                PixelMetricCard(label: "TOTAL", value: compact(viewModel.snapshot.totalUsage.totalTokens), tint: theme.cardAccentA, theme: theme)
+                PixelMetricCard(label: "OUT", value: compact(viewModel.snapshot.totalUsage.outputTokens), tint: theme.cardAccentB, theme: theme)
+                PixelMetricCard(label: "THINK", value: compact(viewModel.snapshot.totalUsage.reasoningOutputTokens), tint: theme.cardAccentC, theme: theme)
+                PixelMetricCard(label: "CACHED", value: compact(viewModel.snapshot.totalUsage.cachedInputTokens), tint: theme.cardAccentD, theme: theme)
             }
         case .claude:
             ClaudeDetailCards(
@@ -1974,13 +2043,13 @@ private struct ClaudeDetailCards: View {
     private func extraUsageTint(for extraUsage: ClaudeExtraUsage) -> Color {
         if let utilization = extraUsage.utilization {
             if utilization >= 80 {
-                return theme.accentD
+                return theme.cardAccentD
             }
             if utilization >= 50 {
-                return theme.accentC
+                return theme.cardAccentC
             }
         }
-        return extraUsage.isEnabled ? theme.accentA : theme.muted
+        return extraUsage.isEnabled ? theme.cardAccentA : theme.cardMuted
     }
 
     private func usedPercent(_ window: RateLimitWindow?) -> String {
@@ -1992,16 +2061,16 @@ private struct ClaudeDetailCards: View {
 
     private func color(for window: RateLimitWindow?) -> Color {
         guard let window else {
-            return theme.muted
+            return theme.cardMuted
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
         if remaining <= 15 {
-            return theme.accentD
+            return theme.cardAccentD
         }
         if remaining <= 40 {
-            return theme.accentC
+            return theme.cardAccentC
         }
-        return theme.accentA
+        return theme.cardAccentA
     }
 }
 
@@ -2020,8 +2089,8 @@ private struct ClaudeExtraUsageRow: View {
     var body: some View {
         HStack(spacing: 8) {
             extraStat("STATUS", extraUsage.isEnabled ? "ENABLED" : "DISABLED", tint)
-            extraStat("USED", usedCreditsText, theme.hudInk)
-            extraStat("LIMIT", monthlyLimitText, theme.hudMuted)
+            extraStat("USED", usedCreditsText, theme.cardAccentB)
+            extraStat("LIMIT", monthlyLimitText, theme.cardMuted)
         }
         .font(.system(size: 9, weight: theme.labelWeight, design: theme.fontDesign))
         .padding(.horizontal, theme == .cobalt ? 12 : 10)
@@ -2036,7 +2105,7 @@ private struct ClaudeExtraUsageRow: View {
     }
 
     private var tint: Color {
-        extraUsage.isEnabled ? theme.accentA : theme.muted
+        extraUsage.isEnabled ? theme.cardAccentA : theme.cardMuted
     }
 
     private var usedCreditsText: String {
@@ -2050,7 +2119,7 @@ private struct ClaudeExtraUsageRow: View {
     private func extraStat(_ label: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .foregroundStyle(theme.muted)
+                .foregroundStyle(theme.cardMuted)
             Text(value)
                 .foregroundStyle(tint)
                 .lineLimit(1)
@@ -2173,16 +2242,16 @@ private struct DualLimitProgress: View {
 
     private func color(for window: RateLimitWindow?) -> Color {
         guard let window else {
-            return theme.muted
+            return theme.hudMuted
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
         if remaining <= 15 {
-            return theme.accentD
+            return theme.hudDanger
         }
         if remaining <= 40 {
-            return theme.accentC
+            return theme.hudWarning
         }
-        return theme.accentA
+        return theme.hudGood
     }
 }
 
@@ -2675,7 +2744,7 @@ private struct PixelMetricCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
                 .font(.system(size: theme.labelFontSize, weight: theme.labelWeight, design: theme.fontDesign))
-                .foregroundStyle(theme.muted)
+                .foregroundStyle(theme.cardMuted)
             Text(value)
                 .font(.system(size: theme.valueFontSize, weight: theme.valueWeight, design: theme.fontDesign))
                 .foregroundStyle(tint)
