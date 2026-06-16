@@ -738,6 +738,11 @@ private struct CompactNotchMetrics {
     }
 }
 
+private enum CompactNotchStyle {
+    static let providerLogoSize: CGFloat = 15
+    static let providerLogoSpacing: CGFloat = 4
+}
+
 struct OAuthCodeRequest: Identifiable, Equatable {
     let id: UUID
     let provider: AgentUsageProvider
@@ -850,7 +855,7 @@ struct NotchOverlayView: View {
             weight: nsFontWeight(for: theme.labelWeight)
         )
         let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
-        let logoWidth: CGFloat = includesProvider ? 14 : 0
+        let logoWidth: CGFloat = includesProvider ? CompactNotchStyle.providerLogoSize + CompactNotchStyle.providerLogoSpacing : 0
         let padding: CGFloat = includesProvider ? 16 : 14
         let desired = textWidth + logoWidth + padding
         return min(max(metrics.earWidth, desired), 126)
@@ -1357,10 +1362,10 @@ private struct CompactRemainingLabel: View {
     }
 
     private func compactRow(showProvider: Bool, showLabel: Bool) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: CompactNotchStyle.providerLogoSpacing) {
             if showProvider, let provider {
                 ProviderLogoMark(provider: provider, tint: tint)
-                    .frame(width: 11, height: 11)
+                    .frame(width: CompactNotchStyle.providerLogoSize, height: CompactNotchStyle.providerLogoSize)
             }
             if showLabel {
                 Text(label)
