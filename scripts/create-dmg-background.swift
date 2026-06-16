@@ -50,22 +50,30 @@ drawText(
     color: NSColor(calibratedWhite: 0.62, alpha: 1)
 )
 
-let arrow = NSBezierPath()
-arrow.move(to: NSPoint(x: 270, y: 190))
-arrow.curve(to: NSPoint(x: 390, y: 190), controlPoint1: NSPoint(x: 308, y: 224), controlPoint2: NSPoint(x: 352, y: 224))
-arrow.lineWidth = 7
-NSColor(calibratedRed: 0.48, green: 0.94, blue: 0.25, alpha: 0.9).setStroke()
-arrow.stroke()
+let arrowColor = NSColor(calibratedRed: 0.48, green: 0.94, blue: 0.25, alpha: 0.92)
+let arrowShadow = NSColor(calibratedRed: 0.48, green: 0.94, blue: 0.25, alpha: 0.18)
+let arrowY: CGFloat = 190
+let shaft = NSRect(x: 262, y: arrowY - 5, width: 118, height: 10)
+let glow = NSBezierPath(roundedRect: shaft.insetBy(dx: -8, dy: -8), xRadius: 13, yRadius: 13)
+arrowShadow.setFill()
+glow.fill()
+
+let shaftPath = NSBezierPath(roundedRect: shaft, xRadius: 5, yRadius: 5)
+arrowColor.setFill()
+shaftPath.fill()
 
 let head = NSBezierPath()
-head.move(to: NSPoint(x: 390, y: 190))
-head.line(to: NSPoint(x: 364, y: 207))
-head.move(to: NSPoint(x: 390, y: 190))
-head.line(to: NSPoint(x: 364, y: 173))
-head.lineWidth = 7
-head.lineCapStyle = .round
-head.lineJoinStyle = .round
-head.stroke()
+head.move(to: NSPoint(x: 404, y: arrowY))
+head.line(to: NSPoint(x: 374, y: arrowY + 20))
+head.line(to: NSPoint(x: 374, y: arrowY - 20))
+head.close()
+head.fill()
+
+let tailDotColor = NSColor(calibratedRed: 0.48, green: 0.94, blue: 0.25, alpha: 0.45)
+tailDotColor.setFill()
+for x in [238, 254] as [CGFloat] {
+    NSBezierPath(ovalIn: NSRect(x: x, y: arrowY - 4, width: 8, height: 8)).fill()
+}
 
 NSColor(calibratedWhite: 1, alpha: 0.08).setStroke()
 NSColor(calibratedWhite: 1, alpha: 0.035).setFill()
