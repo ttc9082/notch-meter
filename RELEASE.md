@@ -1,8 +1,8 @@
 # Release Notes
 
-## 1.0
+## 1.0.1
 
-NotchMeter 1.0 is the first formal release of the macOS notch HUD for coding-agent and model usage. It integrates with the MacBook notch, shows compact quota indicators in the notch ears, and expands into a themed usage dashboard on hover.
+NotchMeter 1.0.1 is a polish release for the macOS notch HUD. It keeps the first formal release's Codex and Claude Code usage dashboard, while improving the install experience, app branding, and theme readability.
 
 ![NotchMeter v1.0 themes](https://raw.githubusercontent.com/ttc9082/notch-meter/main/docs/assets/notchmeter-v1.0-themes.png)
 
@@ -11,6 +11,11 @@ NotchMeter 1.0 is the first formal release of the macOS notch HUD for coding-age
 - Notch-integrated compact HUD with adaptive left/right ear widths.
 - Compact mode shows 5-hour and weekly remaining quota.
 - Expanded mode shows large remaining-quota progress bars and provider-specific detail cards.
+- Custom NotchMeter app icon and README logo.
+- Drag-to-Applications DMG installer with a custom background and install arrow.
+- Larger provider logo in the compact left notch ear.
+- Higher-contrast compact HUD colors.
+- Higher-contrast detail card and progress colors across themes.
 - Provider switching between Codex and Claude Code.
 - Codex remote subscription usage via OAuth, with local Codex usage fallback.
 - Claude Code remote subscription usage via OAuth code paste flow.
@@ -24,9 +29,9 @@ NotchMeter 1.0 is the first formal release of the macOS notch HUD for coding-age
 
 Download the DMG from this release's assets:
 
-- `NotchMeter-1.0.dmg`
+- `NotchMeter-1.0.1.dmg`
 
-Open the DMG, drag or run `NotchMeter.app`, then hover the notch HUD to expand details. This build is ad-hoc signed and not notarized yet, so macOS may require using right-click → Open the first time.
+Open the DMG, drag `NotchMeter.app` to `Applications`, then hover the notch HUD to expand details. This build is ad-hoc signed and not notarized yet, so macOS may require using right-click → Open the first time.
 
 ### Notes
 
