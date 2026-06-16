@@ -1,5 +1,7 @@
 # NotchMeter
 
+<img src="Sources/NotchMeter/Resources/AppIcon/AppIcon.png" alt="NotchMeter logo" width="96">
+
 [中文说明](README.zh-CN.md)
 
 NotchMeter is a tiny open-source macOS notch HUD for keeping coding-agent and model usage visible without leaving the workspace.

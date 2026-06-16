@@ -19,15 +19,34 @@ resources_dir="${contents_dir}/Resources"
 dmg_path="${root_dir}/${dist_dir}/${app_name}-${version}.dmg"
 rw_dmg_path="${root_dir}/${dist_dir}/${app_name}-${version}-rw.dmg"
 background_path="${dmg_stage_dir}/.background/background.png"
+icon_source="${root_dir}/Sources/NotchMeter/Resources/AppIcon/AppIcon.png"
+iconset_dir="${root_dir}/${dist_dir}/${app_name}.iconset"
+icon_path="${resources_dir}/AppIcon.icns"
 
 cd "${root_dir}"
 
-rm -rf "${app_dir}" "${dmg_stage_dir}" "${dmg_path}" "${rw_dmg_path}"
+rm -rf "${app_dir}" "${dmg_stage_dir}" "${dmg_path}" "${rw_dmg_path}" "${iconset_dir}"
 mkdir -p "${macos_dir}" "${resources_dir}"
 
 swift build -c "${configuration}" --product "${binary_name}"
 cp ".build/${configuration}/${binary_name}" "${macos_dir}/${binary_name}"
 chmod +x "${macos_dir}/${binary_name}"
+
+if [[ -f "${icon_source}" ]]; then
+  mkdir -p "${iconset_dir}"
+  sips -z 16 16 "${icon_source}" --out "${iconset_dir}/icon_16x16.png" >/dev/null
+  sips -z 32 32 "${icon_source}" --out "${iconset_dir}/icon_16x16@2x.png" >/dev/null
+  sips -z 32 32 "${icon_source}" --out "${iconset_dir}/icon_32x32.png" >/dev/null
+  sips -z 64 64 "${icon_source}" --out "${iconset_dir}/icon_32x32@2x.png" >/dev/null
+  sips -z 128 128 "${icon_source}" --out "${iconset_dir}/icon_128x128.png" >/dev/null
+  sips -z 256 256 "${icon_source}" --out "${iconset_dir}/icon_128x128@2x.png" >/dev/null
+  sips -z 256 256 "${icon_source}" --out "${iconset_dir}/icon_256x256.png" >/dev/null
+  sips -z 512 512 "${icon_source}" --out "${iconset_dir}/icon_256x256@2x.png" >/dev/null
+  sips -z 512 512 "${icon_source}" --out "${iconset_dir}/icon_512x512.png" >/dev/null
+  sips -z 1024 1024 "${icon_source}" --out "${iconset_dir}/icon_512x512@2x.png" >/dev/null
+  iconutil -c icns "${iconset_dir}" -o "${icon_path}"
+  rm -rf "${iconset_dir}"
+fi
 
 cat > "${contents_dir}/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +61,8 @@ cat > "${contents_dir}/Info.plist" <<PLIST
     <string>${app_name}</string>
     <key>CFBundleDisplayName</key>
     <string>${app_name}</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

@@ -1,5 +1,7 @@
 # NotchMeter
 
+<img src="Sources/NotchMeter/Resources/AppIcon/AppIcon.png" alt="NotchMeter logo" width="96">
+
 [English](README.md)
 
 NotchMeter 是一个开源的 macOS 刘海 HUD，用来在不离开工作区的情况下查看 coding agent 和模型用量。
