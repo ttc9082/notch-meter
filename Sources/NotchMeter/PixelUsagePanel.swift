@@ -591,6 +591,7 @@ final class UsageViewModel: ObservableObject {
     @Published var refreshPulse = false
     @Published var authMessage: String?
     @Published var isRefreshing = false
+    @Published var lastSuccessfulRefreshAt: Date?
     @Published var toastMessage: String?
     @Published var authStatuses: [AgentUsageProvider: ProviderAuthStatus] = [:]
     @Published var signingInProvider: AgentUsageProvider?
@@ -598,6 +599,8 @@ final class UsageViewModel: ObservableObject {
         .flatMap(AgentUsageProvider.init(rawValue:)) ?? .codex
 
     private let usageService = CodexUsageService()
+    private var snapshotsByProvider: [AgentUsageProvider: CodexUsageSnapshot] = [:]
+    private var lastSuccessfulRefreshByProvider: [AgentUsageProvider: Date] = [:]
     private var refreshTask: Task<Void, Never>?
     private var signInTask: Task<Void, Never>?
 
@@ -624,6 +627,10 @@ final class UsageViewModel: ObservableObject {
                 }
 
                 snapshot = nextSnapshot
+                let syncedAt = Date()
+                snapshotsByProvider[provider] = nextSnapshot
+                lastSuccessfulRefreshAt = syncedAt
+                lastSuccessfulRefreshByProvider[provider] = syncedAt
                 errorMessage = nil
                 isRefreshing = false
                 if showToast {
@@ -634,7 +641,6 @@ final class UsageViewModel: ObservableObject {
                     return
                 }
 
-                snapshot = .empty
                 errorMessage = error.localizedDescription
                 isRefreshing = false
                 if showToast {
@@ -653,9 +659,8 @@ final class UsageViewModel: ObservableObject {
     func selectProvider(_ provider: AgentUsageProvider) {
         selectedProvider = provider
         UserDefaults.standard.set(provider.rawValue, forKey: "selectedProvider")
-        var emptySnapshot = CodexUsageSnapshot.empty
-        emptySnapshot.source = UsageDataSource(provider: provider, mode: .remote)
-        snapshot = emptySnapshot
+        snapshot = snapshotsByProvider[provider] ?? Self.emptySnapshot(for: provider)
+        lastSuccessfulRefreshAt = lastSuccessfulRefreshByProvider[provider]
         errorMessage = nil
         authMessage = "Using \(provider.displayName)"
         refresh()
@@ -696,11 +701,12 @@ final class UsageViewModel: ObservableObject {
     func signOut(provider: AgentUsageProvider) {
         do {
             try AgentOAuthFileStore.shared.delete(provider: provider)
+            snapshotsByProvider[provider] = nil
+            lastSuccessfulRefreshByProvider[provider] = nil
             reloadAuthStatuses()
             if selectedProvider == provider {
-                var emptySnapshot = CodexUsageSnapshot.empty
-                emptySnapshot.source = UsageDataSource(provider: provider, mode: .remote)
-                snapshot = emptySnapshot
+                snapshot = Self.emptySnapshot(for: provider)
+                lastSuccessfulRefreshAt = nil
                 errorMessage = nil
             }
             authMessage = "\(provider.displayName) signed out"
@@ -745,6 +751,12 @@ final class UsageViewModel: ObservableObject {
             statuses[provider] = .signedIn(label: Self.accountLabel(from: credentials) ?? "SIGNED IN")
         }
         authStatuses = statuses
+    }
+
+    private static func emptySnapshot(for provider: AgentUsageProvider) -> CodexUsageSnapshot {
+        var snapshot = CodexUsageSnapshot.empty
+        snapshot.source = UsageDataSource(provider: provider, mode: .remote)
+        return snapshot
     }
 
     private static func accountLabel(from credentials: CodexOAuthCredentials) -> String? {
@@ -904,6 +916,8 @@ struct NotchOverlayView: View {
     @State private var activeModal: NotchOverlayModal?
     @State private var proxyDraft = ""
     @State private var oauthCodeDraft = ""
+    @State private var hoveringSync = false
+    @State private var resetHoverHelp: String?
 
     private var expansionAnimation: Animation {
         .easeInOut(duration: expanded ? 0.24 : 0.18)
@@ -1037,6 +1051,18 @@ struct NotchOverlayView: View {
                 Spacer(minLength: 0)
             }
 
+            if expanded, hoveringSync, activeModal == nil, oauthCodeBroker.request == nil {
+                syncHoverTooltip
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topLeading)))
+                    .zIndex(3)
+            }
+
+            if expanded, let resetHoverHelp, activeModal == nil, oauthCodeBroker.request == nil {
+                resetHoverTooltip(resetHoverHelp)
+                    .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .topTrailing)))
+                    .zIndex(4)
+            }
+
             if let request = oauthCodeBroker.request {
                 oauthCodeModalOverlay(request)
                     .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
@@ -1066,6 +1092,8 @@ struct NotchOverlayView: View {
             }
             withAnimation(.easeInOut(duration: 0.18)) {
                 hover = false
+                hoveringSync = false
+                resetHoverHelp = nil
                 expanded = false
             }
         }
@@ -1135,6 +1163,12 @@ struct NotchOverlayView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(width: activeLeftEarWidth, height: metrics.menuBarHeight)
+                .onHover { inside in
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        hoveringSync = inside
+                    }
+                }
+                .help(expanded ? syncHelpText : "Show usage details")
 
                 Color.clear
                     .frame(width: metrics.notchWidth, height: metrics.menuBarHeight)
@@ -1184,6 +1218,42 @@ struct NotchOverlayView: View {
         }
     }
 
+    private var syncHelpText: String {
+        let lastSync = viewModel.lastSuccessfulRefreshAt.map { "Last synced successfully: \(syncTimestamp($0))" }
+            ?? "Not synced successfully yet"
+        return viewModel.isRefreshing ? "Syncing... \(lastSync)" : lastSync
+    }
+
+    private var syncHoverTooltip: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer()
+                .frame(height: metrics.menuBarHeight + 6)
+
+            ToastPill(text: syncHelpText, theme: theme)
+                .frame(maxWidth: activeTotalWidth - 24, alignment: .leading)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 12)
+        .frame(width: activeTotalWidth, height: visibleHeight, alignment: .topLeading)
+        .allowsHitTesting(false)
+    }
+
+    private func resetHoverTooltip(_ text: String) -> some View {
+        VStack(alignment: .trailing, spacing: 0) {
+            Spacer()
+                .frame(height: metrics.menuBarHeight + theme.topPadding + 18)
+
+            ToastPill(text: text, theme: theme)
+                .frame(maxWidth: activeTotalWidth - 24, alignment: .trailing)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.trailing, 12)
+        .frame(width: activeTotalWidth, height: visibleHeight, alignment: .topTrailing)
+        .allowsHitTesting(false)
+    }
+
     private var expandedDeck: some View {
         ZStack(alignment: .top) {
             PixelPalette.notch
@@ -1195,8 +1265,15 @@ struct NotchOverlayView: View {
                         secondary: viewModel.snapshot.rateLimits?.secondary,
                         primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
                         secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
+                        primaryResetHelp: monthDayResetHelp(viewModel.snapshot.rateLimits?.primary?.resetsAt),
+                        secondaryResetHelp: monthDayResetHelp(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
                         pulse: viewModel.refreshPulse,
-                        theme: theme
+                        theme: theme,
+                        onResetHover: { text in
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                resetHoverHelp = text
+                            }
+                        }
                     )
 
                     providerDetailCards
@@ -1380,7 +1457,7 @@ struct NotchOverlayView: View {
     }
 
     private func remainingText(for window: RateLimitWindow?) -> String {
-        guard viewModel.errorMessage == nil, let window else {
+        guard let window else {
             return "--"
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
@@ -1388,7 +1465,7 @@ struct NotchOverlayView: View {
     }
 
     private func remainingColor(for window: RateLimitWindow?) -> Color {
-        guard viewModel.errorMessage == nil, let window else {
+        guard let window else {
             return theme.hudMuted
         }
         let remaining = max(0, min(100, 100 - window.usedPercent))
@@ -1399,6 +1476,13 @@ struct NotchOverlayView: View {
             return theme.hudWarning
         }
         return theme.hudGood
+    }
+
+    private func syncTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = Calendar.current.isDateInToday(date) ? .none : .medium
+        formatter.timeStyle = .medium
+        return formatter.string(from: date)
     }
 
     private func compact(_ value: Int) -> String {
@@ -1426,6 +1510,16 @@ struct NotchOverlayView: View {
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
     }
+
+    private func monthDayResetHelp(_ date: Date?) -> String {
+        guard let date else {
+            return "Reset time unknown"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M/d HH:mm"
+        return "Reset \(formatter.string(from: date))"
+    }
+
 }
 
 private struct MiniUsageStrip: View {
@@ -1693,7 +1787,13 @@ private enum ProviderLogoAssets {
             name = "claude-symbol"
         }
 
-        let url = Bundle.module.url(forResource: name, withExtension: "svg")
+        let url = resourceBundle?.url(forResource: name, withExtension: "svg")
+            ?? resourceBundle?.url(
+                forResource: name,
+                withExtension: "svg",
+                subdirectory: "ProviderLogos"
+            )
+            ?? Bundle.module.url(forResource: name, withExtension: "svg")
             ?? Bundle.module.url(
                 forResource: name,
                 withExtension: "svg",
@@ -1707,6 +1807,20 @@ private enum ProviderLogoAssets {
 
         image.isTemplate = true
         return image
+    }
+
+    private static var resourceBundle: Bundle? {
+        let bundleName = "NotchMeter_NotchMeter.bundle"
+        let candidates = [
+            Bundle.main.resourceURL?.appendingPathComponent(bundleName),
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/\(bundleName)"),
+            Bundle.main.bundleURL.appendingPathComponent(bundleName),
+            Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent(bundleName)
+        ]
+
+        return candidates.lazy.compactMap { url in
+            url.flatMap(Bundle.init(url:))
+        }.first
     }
 }
 
@@ -2166,19 +2280,22 @@ private struct DualLimitProgress: View {
     let secondary: RateLimitWindow?
     let primaryReset: String
     let secondaryReset: String
+    let primaryResetHelp: String
+    let secondaryResetHelp: String
     let pulse: Bool
     let theme: NotchTheme
+    let onResetHover: (String?) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            limitRow(title: "5H", window: primary, reset: primaryReset, accent: color(for: primary))
-            limitRow(title: "WK", window: secondary, reset: secondaryReset, accent: color(for: secondary))
+            limitRow(title: "5H", window: primary, reset: primaryReset, resetHelp: primaryResetHelp, accent: color(for: primary))
+            limitRow(title: "WK", window: secondary, reset: secondaryReset, resetHelp: secondaryResetHelp, accent: color(for: secondary))
         }
         .frame(maxWidth: .infinity)
         .scaleEffect(y: pulse ? 1.035 : 1)
     }
 
-    private func limitRow(title: String, window: RateLimitWindow?, reset: String, accent: Color) -> some View {
+    private func limitRow(title: String, window: RateLimitWindow?, reset: String, resetHelp: String, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(title)
@@ -2192,6 +2309,10 @@ private struct DualLimitProgress: View {
                     .foregroundStyle(theme.hudMuted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        onResetHover(inside ? resetHelp : nil)
+                    }
             }
             .font(.system(size: 11, weight: theme.labelWeight, design: theme.fontDesign))
 

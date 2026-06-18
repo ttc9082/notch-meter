@@ -22,6 +22,7 @@ background_path="${dmg_stage_dir}/.background/background.png"
 icon_source="${root_dir}/Sources/NotchMeter/Resources/AppIcon/AppIcon.png"
 iconset_dir="${root_dir}/${dist_dir}/${app_name}.iconset"
 icon_path="${resources_dir}/AppIcon.icns"
+resource_bundle_name="NotchMeter_NotchMeter.bundle"
 
 cd "${root_dir}"
 
@@ -31,6 +32,10 @@ mkdir -p "${macos_dir}" "${resources_dir}"
 swift build -c "${configuration}" --product "${binary_name}"
 cp ".build/${configuration}/${binary_name}" "${macos_dir}/${binary_name}"
 chmod +x "${macos_dir}/${binary_name}"
+
+if [[ -d ".build/${configuration}/${resource_bundle_name}" ]]; then
+  cp -R ".build/${configuration}/${resource_bundle_name}" "${resources_dir}/${resource_bundle_name}"
+fi
 
 if [[ -f "${icon_source}" ]]; then
   mkdir -p "${iconset_dir}"
