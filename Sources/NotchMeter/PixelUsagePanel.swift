@@ -527,6 +527,7 @@ private enum NotchTheme: CaseIterable {
 
     func expandedDeckHeight(
         for provider: AgentUsageProvider,
+        rateLimitRowCount: Int,
         claudeDetailMetricCount: Int,
         hasClaudeExtraUsage: Bool
     ) -> CGFloat {
@@ -537,15 +538,18 @@ private enum NotchTheme: CaseIterable {
         )
 
         return topPadding
-            + progressBlockHeight
+            + progressBlockHeight(for: rateLimitRowCount)
             + (detailHeight > 0 ? contentSpacing + detailHeight : 0)
             + footerTopSpacing
             + footerHeight
             + bottomPadding
     }
 
-    private var progressBlockHeight: CGFloat {
-        progressHeight * 2 + 43
+    private func progressBlockHeight(for rowCount: Int) -> CGFloat {
+        let count = max(1, rowCount)
+        return progressHeight * CGFloat(count)
+            + CGFloat(18 * count)
+            + CGFloat(7 * (count - 1))
     }
 
     var footerHeight: CGFloat {
@@ -857,6 +861,14 @@ private enum CompactNotchStyle {
     static let providerLogoSpacing: CGFloat = 4
 }
 
+private struct RateLimitDisplayItem: Identifiable {
+    let id: String
+    let title: String
+    let window: RateLimitWindow?
+    let reset: String
+    let resetHelp: String
+}
+
 struct OAuthCodeRequest: Identifiable, Equatable {
     let id: UUID
     let provider: AgentUsageProvider
@@ -946,35 +958,102 @@ struct NotchOverlayView: View {
         expanded ? (activeTotalWidth - metrics.notchWidth) / 2 : compactMetrics.rightEarWidth
     }
 
+    private var rateLimitItems: [RateLimitDisplayItem] {
+        let limits = viewModel.snapshot.rateLimits
+
+        switch viewModel.selectedProvider {
+        case .codex:
+            let windows = [limits?.primary, limits?.secondary].compactMap { $0 }
+            let window = windows.first(where: { ($0.windowMinutes ?? 0) >= 7 * 24 * 60 })
+                ?? windows.max(by: { ($0.windowMinutes ?? 0) < ($1.windowMinutes ?? 0) })
+            return [rateLimitItem(id: "codex", window: window, fallbackTitle: "7D")]
+
+        case .claude:
+            let candidates = [
+                (id: "claude-primary", window: limits?.primary, fallbackTitle: "5H"),
+                (id: "claude-secondary", window: limits?.secondary, fallbackTitle: "7D")
+            ]
+            let available = candidates.compactMap { candidate -> RateLimitDisplayItem? in
+                guard let window = candidate.window else {
+                    return nil
+                }
+                return rateLimitItem(
+                    id: candidate.id,
+                    window: window,
+                    fallbackTitle: candidate.fallbackTitle
+                )
+            }
+            if !available.isEmpty {
+                return available
+            }
+            return candidates.map { candidate in
+                rateLimitItem(
+                    id: candidate.id,
+                    window: nil,
+                    fallbackTitle: candidate.fallbackTitle
+                )
+            }
+        }
+    }
+
+    private var compactRateLimitItem: RateLimitDisplayItem {
+        rateLimitItems
+            .filter { $0.window != nil }
+            .max { left, right in
+                (left.window?.usedPercent ?? 0) < (right.window?.usedPercent ?? 0)
+            }
+            ?? rateLimitItems[0]
+    }
+
     private var compactMetrics: CompactNotchMetrics {
-        let left = compactEarWidth(
-            label: "5H",
-            value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
-            includesProvider: true
-        )
-        let right = compactEarWidth(
-            label: "WK",
-            value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
-            includesProvider: false
+        let item = compactRateLimitItem
+        let right = compactDataEarWidth(
+            label: item.title,
+            value: remainingText(for: item.window)
         )
         return CompactNotchMetrics(
-            leftEarWidth: left,
+            leftEarWidth: metrics.earWidth,
             rightEarWidth: right,
             notchWidth: metrics.notchWidth
         )
     }
 
-    private func compactEarWidth(label: String, value: String, includesProvider: Bool) -> CGFloat {
+    private func compactDataEarWidth(label: String, value: String) -> CGFloat {
         let text = "\(label) \(value)"
         let font = NSFont.systemFont(
             ofSize: compactEstimateFontSize,
             weight: nsFontWeight(for: theme.labelWeight)
         )
         let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width)
-        let logoWidth: CGFloat = includesProvider ? CompactNotchStyle.providerLogoSize + CompactNotchStyle.providerLogoSpacing : 0
-        let padding: CGFloat = includesProvider ? 16 : 14
-        let desired = textWidth + logoWidth + padding
+        let desired = textWidth + 18
         return min(max(metrics.earWidth, desired), 126)
+    }
+
+    private func rateLimitItem(
+        id: String,
+        window: RateLimitWindow?,
+        fallbackTitle: String
+    ) -> RateLimitDisplayItem {
+        RateLimitDisplayItem(
+            id: id,
+            title: rateLimitTitle(for: window, fallback: fallbackTitle),
+            window: window,
+            reset: relative(window?.resetsAt),
+            resetHelp: monthDayResetHelp(window?.resetsAt)
+        )
+    }
+
+    private func rateLimitTitle(for window: RateLimitWindow?, fallback: String) -> String {
+        guard let minutes = window?.windowMinutes, minutes > 0 else {
+            return fallback
+        }
+        if minutes.isMultiple(of: 60 * 24) {
+            return "\(minutes / (60 * 24))D"
+        }
+        if minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)H"
+        }
+        return "\(minutes)M"
     }
 
     private var compactEstimateFontSize: CGFloat {
@@ -991,6 +1070,7 @@ struct NotchOverlayView: View {
     private var detailDeckHeight: CGFloat {
         theme.expandedDeckHeight(
             for: viewModel.selectedProvider,
+            rateLimitRowCount: rateLimitItems.count,
             claudeDetailMetricCount: claudeDetailMetricCount,
             hasClaudeExtraUsage: viewModel.snapshot.claudeDetails?.extraUsage != nil
         )
@@ -1032,7 +1112,6 @@ struct NotchOverlayView: View {
         ZStack(alignment: .top) {
             UnifiedNotchShape()
                 .fill(PixelPalette.notch)
-                .shadow(color: Color.black.opacity(0.34), radius: 12, x: 0, y: 6)
                 .frame(height: visibleHeight)
                 .animation(expansionAnimation, value: expanded)
                 .animation(expansionAnimation, value: theme)
@@ -1144,13 +1223,11 @@ struct NotchOverlayView: View {
                         if expanded {
                             NotchActionLabel(title: viewModel.isRefreshing ? "SYNC..." : "SYNC", tint: theme.accentB)
                         } else {
-                            CompactRemainingLabel(
-                                label: "5H",
-                                value: remainingText(for: viewModel.snapshot.rateLimits?.primary),
-                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.primary),
-                                theme: theme,
-                                provider: viewModel.selectedProvider
-                            )
+                            ProviderLogoMark(provider: viewModel.selectedProvider, tint: theme.hudInk)
+                                .frame(
+                                    width: CompactNotchStyle.providerLogoSize,
+                                    height: CompactNotchStyle.providerLogoSize
+                                )
                         }
                     }
                     .frame(
@@ -1158,7 +1235,7 @@ struct NotchOverlayView: View {
                         maxHeight: .infinity,
                         alignment: expanded ? .center : .trailing
                     )
-                    .padding(.trailing, expanded ? 0 : 4)
+                    .padding(.trailing, expanded ? 0 : 10)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -1186,15 +1263,20 @@ struct NotchOverlayView: View {
                             NotchActionLabel(title: theme.buttonTitle, tint: theme.actionAccent)
                         } else {
                             CompactRemainingLabel(
-                                label: "WK",
-                                value: remainingText(for: viewModel.snapshot.rateLimits?.secondary),
-                                tint: remainingColor(for: viewModel.snapshot.rateLimits?.secondary),
+                                label: compactRateLimitItem.title,
+                                value: remainingText(for: compactRateLimitItem.window),
+                                tint: remainingColor(for: compactRateLimitItem.window),
                                 theme: theme,
                                 provider: nil
                             )
                         }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: expanded ? .center : .leading
+                    )
+                    .padding(.leading, expanded ? 0 : 2)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -1260,13 +1342,8 @@ struct NotchOverlayView: View {
 
             VStack(alignment: .leading, spacing: theme.contentSpacing) {
                 VStack(alignment: .leading, spacing: theme.contentSpacing) {
-                    DualLimitProgress(
-                        primary: viewModel.snapshot.rateLimits?.primary,
-                        secondary: viewModel.snapshot.rateLimits?.secondary,
-                        primaryReset: relative(viewModel.snapshot.rateLimits?.primary?.resetsAt),
-                        secondaryReset: relative(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
-                        primaryResetHelp: monthDayResetHelp(viewModel.snapshot.rateLimits?.primary?.resetsAt),
-                        secondaryResetHelp: monthDayResetHelp(viewModel.snapshot.rateLimits?.secondary?.resetsAt),
+                    RateLimitProgressList(
+                        items: rateLimitItems,
                         pulse: viewModel.refreshPulse,
                         theme: theme,
                         onResetHover: { text in
@@ -2275,49 +2352,45 @@ private struct MiniUsagePip: View {
     }
 }
 
-private struct DualLimitProgress: View {
-    let primary: RateLimitWindow?
-    let secondary: RateLimitWindow?
-    let primaryReset: String
-    let secondaryReset: String
-    let primaryResetHelp: String
-    let secondaryResetHelp: String
+private struct RateLimitProgressList: View {
+    let items: [RateLimitDisplayItem]
     let pulse: Bool
     let theme: NotchTheme
     let onResetHover: (String?) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            limitRow(title: "5H", window: primary, reset: primaryReset, resetHelp: primaryResetHelp, accent: color(for: primary))
-            limitRow(title: "WK", window: secondary, reset: secondaryReset, resetHelp: secondaryResetHelp, accent: color(for: secondary))
+            ForEach(items) { item in
+                limitRow(item, accent: color(for: item.window))
+            }
         }
         .frame(maxWidth: .infinity)
         .scaleEffect(y: pulse ? 1.035 : 1)
     }
 
-    private func limitRow(title: String, window: RateLimitWindow?, reset: String, resetHelp: String, accent: Color) -> some View {
+    private func limitRow(_ item: RateLimitDisplayItem, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                Text(title)
+                Text(item.title)
                     .foregroundStyle(theme.hudMuted)
-                Text("\(remainingPercent(for: window)) LEFT")
+                Text("\(remainingPercent(for: item.window)) LEFT")
                     .foregroundStyle(accent)
                 Spacer()
-                Text("\(usedPercent(for: window)) USED")
+                Text("\(usedPercent(for: item.window)) USED")
                     .foregroundStyle(theme.hudInk)
-                Text("RESET \(reset)")
+                Text("RESET \(item.reset)")
                     .foregroundStyle(theme.hudMuted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .contentShape(Rectangle())
                     .onHover { inside in
-                        onResetHover(inside ? resetHelp : nil)
+                        onResetHover(inside ? item.resetHelp : nil)
                     }
             }
             .font(.system(size: 11, weight: theme.labelWeight, design: theme.fontDesign))
 
             GeometryReader { proxy in
-                let remaining = max(0, min(100, 100 - (window?.usedPercent ?? 100)))
+                let remaining = max(0, min(100, 100 - (item.window?.usedPercent ?? 100)))
                 let width = proxy.size.width * remaining / 100
 
                 ZStack(alignment: .leading) {
@@ -2383,10 +2456,20 @@ private struct QuotaDetailStrip: View {
     let secondaryReset: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            quotaPanel(title: "5H", window: primary, reset: primaryReset)
-            quotaPanel(title: "WEEK", window: secondary, reset: secondaryReset)
+        let limit = displayedLimit
+        quotaPanel(title: windowSpan(for: limit.window), window: limit.window, reset: limit.reset)
+    }
+
+    private var displayedLimit: (window: RateLimitWindow?, reset: String) {
+        [
+            (window: primary, reset: primaryReset),
+            (window: secondary, reset: secondaryReset)
+        ]
+        .filter { $0.window != nil }
+        .max { left, right in
+            (left.window?.windowMinutes ?? 0) < (right.window?.windowMinutes ?? 0)
         }
+        ?? (window: nil, reset: "unknown")
     }
 
     private func quotaPanel(title: String, window: RateLimitWindow?, reset: String) -> some View {
@@ -2649,8 +2732,8 @@ struct PixelUsagePanel: View {
     private var usageContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             PixelProgressBar(
-                title: "5H LIMIT",
-                value: viewModel.snapshot.rateLimits?.primary?.usedPercent ?? 0,
+                title: "\(windowSpan(for: displayedLimit)) LIMIT",
+                value: displayedLimit?.usedPercent ?? 0,
                 pulse: viewModel.refreshPulse
             )
 
@@ -2673,7 +2756,7 @@ struct PixelUsagePanel: View {
             }
 
             HStack(spacing: 10) {
-                PixelInfoRow(label: "WINDOW", value: percent(viewModel.snapshot.rateLimits?.secondary?.usedPercent))
+                PixelInfoRow(label: "RESET", value: relative(displayedLimit?.resetsAt))
                 PixelInfoRow(label: "PLAN", value: viewModel.snapshot.rateLimits?.planType?.uppercased() ?? "LOCAL")
             }
 
@@ -2700,10 +2783,34 @@ struct PixelUsagePanel: View {
         if viewModel.errorMessage != nil {
             return "scanner offline"
         }
-        if let primary = viewModel.snapshot.rateLimits?.primary {
-            return "\(Int(primary.usedPercent.rounded()))% used - resets \(relative(primary.resetsAt))"
+        if let displayedLimit {
+            return "\(Int(displayedLimit.usedPercent.rounded()))% used - resets \(relative(displayedLimit.resetsAt))"
         }
         return "watching local codex usage"
+    }
+
+    private var displayedLimit: RateLimitWindow? {
+        [
+            viewModel.snapshot.rateLimits?.primary,
+            viewModel.snapshot.rateLimits?.secondary
+        ]
+        .compactMap { $0 }
+        .max { left, right in
+            (left.windowMinutes ?? 0) < (right.windowMinutes ?? 0)
+        }
+    }
+
+    private func windowSpan(for window: RateLimitWindow?) -> String {
+        guard let minutes = window?.windowMinutes, minutes > 0 else {
+            return "--"
+        }
+        if minutes.isMultiple(of: 60 * 24) {
+            return "\(minutes / (60 * 24))D"
+        }
+        if minutes.isMultiple(of: 60) {
+            return "\(minutes / 60)H"
+        }
+        return "\(minutes)M"
     }
 
     private func compact(_ value: Int) -> String {

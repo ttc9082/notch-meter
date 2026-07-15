@@ -1,5 +1,33 @@
 # Release Notes
 
+## 1.0.5
+
+NotchMeter 1.0.5 improves quota-window accuracy and removes the persistent gray halo that could appear around the notch HUD after expanding or collapsing it.
+
+![NotchMeter v1.0 themes](https://raw.githubusercontent.com/ttc9082/notch-meter/main/docs/assets/notchmeter-v1.0-themes.png)
+
+### Highlights
+
+- Shows the most relevant available Codex quota window instead of assuming fixed 5-hour and weekly rows.
+- Preserves both available Claude Code quota windows and sizes the expanded HUD to the actual row count.
+- Uses the provider mark in the compact left ear and keeps the active quota summary readable in the right ear.
+- Labels quota windows from their real durations and uses the longest available window in the standalone usage panel.
+- Removes both the transparent panel shadow and the SwiftUI shape shadow, preventing a cached gray halo after notch expansion or collapse.
+
+### Download
+
+Download the DMG from this release's assets:
+
+- `NotchMeter-1.0.5.dmg`
+
+Open the DMG, drag `NotchMeter.app` to `Applications`, then hover the notch HUD to expand details. This build is ad-hoc signed and not notarized yet, so macOS may require using right-click → Open the first time.
+
+### Notes
+
+- OAuth credentials are stored locally in `~/.notchmeter/auth.json` with `0600` permissions.
+- Claude Code usage polling is cached and throttled to reduce `429` responses.
+- Local Codex mode reads numeric usage fields from session JSONL files and does not read prompt or response text.
+
 ## 1.0.4
 
 NotchMeter 1.0.4 is a small reliability release for provider switching, sync feedback, and packaged app assets. It keeps the existing Codex and Claude Code usage dashboard, while making in-progress and failed refreshes less disruptive.

@@ -78,7 +78,11 @@ final class NotchOverlayController {
         )
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.hasShadow = true
+        // The panel hosts an animated, non-rectangular transparent surface.
+        // AppKit caches a window-level shadow mask after resize/expand cycles,
+        // which can leave a persistent gray halo around the collapsed notch.
+        // Composite the black notch directly against the screen instead.
+        panel.hasShadow = false
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
